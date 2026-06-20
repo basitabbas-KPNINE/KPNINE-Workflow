@@ -326,6 +326,368 @@ function SlackPanel() {
   );
 }
 
+// ─── Google Sheets Sync Panel ────────────────────────────────────────────────
+
+function GoogleSheetsPanel({ onTasksImported }: { onTasksImported: () => Promise<void> }) {
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showUrl, setShowUrl] = useState(false);
+  const [status, setStatus] = useState<{ type: "success" | "error" | ""; msg: string }>({ type: "", msg: "" });
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  async function loadSettings() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/settings/sheets");
+      if (res.ok) {
+        const d = await res.json();
+        setWebhookUrl(d.webhookUrl || "");
+        setEnabled(d.enabled || false);
+        setLogs(d.lastLogs || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveSettings(overrides?: any) {
+    setSaving(true);
+    clearStatus();
+    try {
+      const res = await fetch("/api/settings/sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          webhookUrl: overrides?.webhookUrl ?? webhookUrl,
+          enabled: overrides?.enabled ?? enabled,
+        }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setWebhookUrl(d.webhookUrl || "");
+        setEnabled(d.enabled || false);
+        setLogs(d.lastLogs || []);
+        showStatus("success", "Google Sheets link updated successfully.");
+      } else {
+        showStatus("error", "Failed to save Google Sheets settings.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleEnabled() {
+    const next = !enabled;
+    setEnabled(next);
+    await saveSettings({ enabled: next });
+  }
+
+  async function runSyncAll() {
+    setSyncingAll(true);
+    clearStatus();
+    try {
+      const res = await fetch("/api/settings/sheets/sync-all", { method: "POST" });
+      if (res.ok) {
+        await loadSettings();
+        showStatus("success", "Entire pipeline successfully backed up to Google Sheets!");
+      } else {
+        const d = await res.json();
+        showStatus("error", d.error || "Failed to sync to Google Sheets.");
+      }
+    } catch {
+      showStatus("error", "Sync failed. Make sure your Web App URL is accessible.");
+    } finally {
+      setSyncingAll(false);
+    }
+  }
+
+  async function runRestore() {
+    if (!window.confirm("⚠️ RESTORE PIPELINE DATA\n\nThis will replace all your current campaigns with the records in your Google Sheet. Are you sure you want to proceed?")) {
+      return;
+    }
+    setRestoring(true);
+    clearStatus();
+    try {
+      const res = await fetch("/api/settings/sheets/restore", { method: "POST" });
+      if (res.ok) {
+        const d = await res.json();
+        await onTasksImported();
+        await loadSettings();
+        showStatus("success", `Restored ${d.count} campaigns successfully from Google Sheets!`);
+      } else {
+        const d = await res.json();
+        showStatus("error", d.error || "Failed to restore data.");
+      }
+    } catch {
+      showStatus("error", "Restore failed. Verify your Apps Script is deployed.");
+    } finally {
+      setRestoring(false);
+    }
+  }
+
+  async function clearLogs() {
+    await fetch("/api/settings/sheets/clear-logs", { method: "POST" });
+    setLogs([]);
+  }
+
+  function showStatus(type: "success" | "error", msg: string) {
+    setStatus({ type, msg });
+    setTimeout(() => setStatus({ type: "", msg: "" }), 5000);
+  }
+  function clearStatus() { setStatus({ type: "", msg: "" }); }
+
+  const scriptCode = `function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = JSON.parse(e.postData.contents);
+  if (data.action === "sync_all") {
+    sheet.clear();
+    sheet.appendRow(["ID", "Client Name", "Campaign Title", "Stage", "Format", "Description", "Raw Footage Path/Link", "Edited Path/Link", "Caption", "Hashtags", "Published Platform", "Published Link", "Publisher Notes", "Created At", "Updated At"]);
+    var tasks = data.tasks;
+    for (var i = 0; i < tasks.length; i++) {
+      var t = tasks[i];
+      sheet.appendRow([
+        t.id || "", t.clientName || "", t.title || "", t.stage || "", t.format || "",
+        t.description || "", t.rawFootageLink || t.rawFootagePath || "", t.editedFileLink || t.editedFilePath || "",
+        t.captionText || "", t.hashtags || "", t.publishedPlatform || "", t.publishedLink || "", t.publisherNotes || "",
+        t.createdAt || "", t.updatedAt || ""
+      ]);
+    }
+    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+  } else if (data.action === "upsert") {
+    var t = data.task;
+    var rows = sheet.getDataRange().getValues();
+    var rowIndex = -1;
+    for (var i = 1; i < rows.length; i++) {
+      if (rows[i][0] === t.id) { rowIndex = i + 1; break; }
+    }
+    var rowData = [
+      t.id || "", t.clientName || "", t.title || "", t.stage || "", t.format || "",
+      t.description || "", t.rawFootageLink || t.rawFootagePath || "", t.editedFileLink || t.editedFilePath || "",
+      t.captionText || "", t.hashtags || "", t.publishedPlatform || "", t.publishedLink || "", t.publisherNotes || "",
+      t.createdAt || "", t.updatedAt || ""
+    ];
+    if (rowIndex !== -1) {
+      sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+    } else {
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(["ID", "Client Name", "Campaign Title", "Stage", "Format", "Description", "Raw Footage Path/Link", "Edited Path/Link", "Caption", "Hashtags", "Published Platform", "Published Link", "Publisher Notes", "Created At", "Updated At"]);
+      }
+      sheet.appendRow(rowData);
+    }
+    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+  } else if (data.action === "delete") {
+    var id = data.id;
+    var rows = sheet.getDataRange().getValues();
+    for (var i = 1; i < rows.length; i++) {
+      if (rows[i][0] === id) { sheet.deleteRow(i + 1); break; }
+    }
+    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+  } else if (data.action === "fetch_all") {
+    var rows = sheet.getDataRange().getValues();
+    if (rows.length < 2) {
+      return ContentService.createTextOutput(JSON.stringify({tasks: []})).setMimeType(ContentService.MimeType.JSON);
+    }
+    var tasks = [];
+    for (var i = 1; i < rows.length; i++) {
+      var row = rows[i];
+      tasks.push({
+        id: row[0], clientName: row[1], title: row[2], stage: row[3], format: row[4],
+        description: row[5], rawFootageLink: row[6], editedFileLink: row[7],
+        captionText: row[8], hashtags: row[9], publishedPlatform: row[10], publishedLink: row[11], publisherNotes: row[12],
+        createdAt: row[13], updatedAt: row[14]
+      });
+    }
+    return ContentService.createTextOutput(JSON.stringify({tasks: tasks})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+`;
+
+  function copyScriptCode() {
+    navigator.clipboard.writeText(scriptCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  }
+
+  const hasWebhook = webhookUrl.trim().length > 0;
+  const isConnected = hasWebhook && enabled;
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className={`p-2 rounded-xl ${isConnected ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-slate-800 border border-slate-700"}`}>
+            <FileText className={`h-4 w-4 ${isConnected ? "text-emerald-400" : "text-emerald-500"}`} />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-white">Google Sheets Backup & Live-Sync</h4>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {isConnected ? "Connected — real-time Google Sheet synchronization" : "Google Sheets integration"}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${isConnected ? "bg-emerald-400 animate-pulse" : "bg-slate-600"}`} />
+          <span className="text-[11px] font-mono text-slate-400">{isConnected ? "Connected" : "Not Linked"}</span>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-5 w-5 text-slate-500 animate-spin" />
+        </div>
+      ) : (
+        <>
+          <div className="bg-slate-950 rounded-xl p-3.5 border border-slate-800/80 text-xs text-slate-300 space-y-3">
+            <h5 className="font-bold text-emerald-400 flex items-center gap-1.5">
+              <span className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded text-[10px]">Easy Setup Guide</span>
+              No Google OAuth/API Keys needed!
+            </h5>
+            <ol className="list-decimal list-inside space-y-1.5 leading-relaxed text-[11px] text-slate-400">
+              <li>Open your target Google Sheet</li>
+              <li>Click <strong className="text-zinc-100">Extensions → Apps Script</strong></li>
+              <li>Clear any code, paste our Apps Script template code, and click save.</li>
+              <li>Click <strong className="text-zinc-100">Deploy → New Deployment</strong></li>
+              <li>Set Type: <strong className="text-zinc-100">Web App</strong>, Execute as: <strong className="text-zinc-100">Me</strong>, Access: <strong className="text-zinc-100">Anyone</strong></li>
+              <li>Deploy, copy the Web App URL, and paste it below!</li>
+            </ol>
+            
+            <button
+              onClick={copyScriptCode}
+              className="w-full py-2 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-300 rounded-lg text-[10px] font-bold cursor-pointer flex items-center justify-center gap-1.5 transition-colors"
+            >
+              {copied ? (
+                <>
+                  <CheckCheck className="h-3 w-3 text-emerald-400" />
+                  Code Copied to Clipboard!
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-3 w-3" />
+                  Copy Google Apps Script Code
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <span className="bg-indigo-600 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
+              Apps Script Web App URL
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showUrl ? "text" : "password"}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors pr-9"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowUrl(!showUrl)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"
+                >
+                  {showUrl ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+              <button
+                onClick={() => saveSettings({ webhookUrl, enabled: webhookUrl ? true : enabled })}
+                disabled={saving}
+                className="px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              >
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
+                Save
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between bg-slate-950 rounded-xl p-3 border border-slate-800">
+            <div>
+              <p className="text-xs font-semibold text-slate-200">Enable Google Sheet Live Sync</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Upload, edit, and delete rows automatically in real time</p>
+            </div>
+            <button
+              onClick={toggleEnabled}
+              disabled={!hasWebhook || saving}
+              title={!hasWebhook ? "Add a web app URL first" : ""}
+              className="cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {enabled
+                ? <ToggleRight className="h-7 w-7 text-emerald-400" />
+                : <ToggleLeft className="h-7 w-7 text-slate-500" />}
+            </button>
+          </div>
+
+          <div className="flex gap-2.5">
+            <button
+              onClick={runSyncAll}
+              disabled={!hasWebhook || syncingAll}
+              className="flex-1 py-2 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-300 rounded-xl text-xs font-semibold cursor-pointer flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40"
+            >
+              {syncingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Full Backup to Sheet
+            </button>
+            <button
+              onClick={runRestore}
+              disabled={!hasWebhook || restoring}
+              className="flex-1 py-2 bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 text-indigo-300 rounded-xl text-xs font-semibold cursor-pointer flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40"
+            >
+              {restoring ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Restore from Sheet
+            </button>
+          </div>
+
+          {status.msg && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs border ${
+              status.type === "success"
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
+                : "bg-rose-500/10 border-rose-500/20 text-rose-300"
+            }`}>
+              {status.type === "success" ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> : <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />}
+              {status.msg}
+            </div>
+          )}
+
+          {logs.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Sync Connection Logs</p>
+                <button
+                  onClick={clearLogs}
+                  className="text-[9px] text-rose-400 hover:text-rose-300 underline cursor-pointer"
+                >
+                  Clear Logs
+                </button>
+              </div>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {logs.slice(0, 5).map((log) => (
+                  <div key={log.id} className="flex items-center gap-2 bg-slate-950 rounded-lg px-2.5 py-1.5 border border-slate-900 font-mono text-[9px]">
+                    <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${log.success ? "bg-emerald-400" : "bg-rose-400"}`} />
+                    <span className="text-[10px] text-slate-300 flex-1 truncate">{log.message}</span>
+                    <span className="text-slate-500 flex-shrink-0">
+                      {new Date(log.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Data Export Panel ───────────────────────────────────────────────────────
 
 function DataPanel({ tasks, activities, onTasksImported }: {
@@ -593,9 +955,10 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, cur
           </div>
         </div>
 
-        {/* Right column: Slack + Data */}
+        {/* Right column: Slack + Sheets + Data */}
         <div className="space-y-4">
           <SlackPanel />
+          <GoogleSheetsPanel onTasksImported={onTasksImported} />
           <DataPanel tasks={tasks} activities={activities} onTasksImported={onTasksImported} />
         </div>
 

@@ -113,6 +113,44 @@ function saveSlackSettings(settings: any): void {
     .run(JSON.stringify(settings));
 }
 
+// ─── Google Sheets Sync helpers ──────────────────────────────────────────────
+
+function getGoogleSheetsSettings(): any {
+  const row = getDB().prepare("SELECT value FROM settings WHERE key = 'sheets'").get() as any;
+  return row ? JSON.parse(row.value) : { webhookUrl: "", enabled: false, logs: [] };
+}
+
+function saveGoogleSheetsSettings(settings: any): void {
+  getDB()
+    .prepare("INSERT INTO settings (key, value) VALUES ('sheets', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    .run(JSON.stringify(settings));
+}
+
+function appendSheetsLog(message: string, success: boolean): void {
+  const s = getGoogleSheetsSettings();
+  const logs = s.logs || [];
+  logs.unshift({ id: `sheets-log-${Date.now()}`, message, success, timestamp: new Date().toISOString() });
+  s.logs = logs.slice(0, 50);
+  saveGoogleSheetsSettings(s);
+}
+
+async function syncToGoogleSheets(action: "upsert" | "delete" | "sync_all", payload: any): Promise<void> {
+  const settings = getGoogleSheetsSettings();
+  if (!settings.enabled || !settings.webhookUrl) return;
+
+  try {
+    const response = await fetch(settings.webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const success = response.ok;
+    appendSheetsLog(`Background Sync [${action.toUpperCase()}]: ${success ? "Success" : "HTTP Status " + response.status}`, success);
+  } catch (error: any) {
+    appendSheetsLog(`Background Sync [${action.toUpperCase()}] failed: ${error.message}`, false);
+  }
+}
+
 // ─── Slack Dispatcher ────────────────────────────────────────────────────────
 
 async function dispatchSlackNotification(params: {
@@ -228,6 +266,7 @@ app.post("/api/tasks", (req, res) => {
   };
 
   upsertTask(task);
+  syncToGoogleSheets("upsert", { task }).catch(console.error);
 
   const activity = {
     id: "act-" + Date.now(),
@@ -264,6 +303,7 @@ app.put("/api/tasks/:id", (req, res) => {
   const previousStage = existing.stage;
   const updated = { ...existing, ...req.body, updatedAt: new Date().toISOString() };
   upsertTask(updated);
+  syncToGoogleSheets("upsert", { task: updated }).catch(console.error);
 
   let actionSlug = "updated";
   if (req.body.stage && req.body.stage !== previousStage) {
@@ -311,7 +351,9 @@ app.put("/api/tasks/:id", (req, res) => {
 });
 
 app.delete("/api/tasks/:id", (req, res) => {
-  if (!deleteTask(req.params.id)) return res.status(404).json({ error: "Not found" });
+  const id = req.params.id;
+  if (!deleteTask(id)) return res.status(404).json({ error: "Not found" });
+  syncToGoogleSheets("delete", { id }).catch(console.error);
   res.json({ success: true });
 });
 
@@ -381,6 +423,99 @@ app.post("/api/settings/clear-logs", (_req, res) => {
   s.logs = [];
   saveSlackSettings(s);
   res.json({ success: true });
+});
+
+// Settings (Google Sheets)
+app.get("/api/settings/sheets", (_req, res) => {
+  const s = getGoogleSheetsSettings();
+  res.json({
+    webhookUrl: s.webhookUrl,
+    enabled: s.enabled,
+    lastLogs: s.logs || [],
+  });
+});
+
+app.post("/api/settings/sheets", (req, res) => {
+  const current = getGoogleSheetsSettings();
+  const updated = {
+    webhookUrl: typeof req.body.webhookUrl === "string" ? req.body.webhookUrl : current.webhookUrl,
+    enabled: typeof req.body.enabled === "boolean" ? req.body.enabled : current.enabled,
+    logs: current.logs || [],
+  };
+  saveGoogleSheetsSettings(updated);
+  res.json({
+    webhookUrl: updated.webhookUrl,
+    enabled: updated.enabled,
+    lastLogs: updated.logs,
+  });
+});
+
+app.post("/api/settings/sheets/clear-logs", (_req, res) => {
+  const s = getGoogleSheetsSettings();
+  s.logs = [];
+  saveGoogleSheetsSettings(s);
+  res.json({ success: true });
+});
+
+app.post("/api/settings/sheets/sync-all", async (_req, res) => {
+  const s = getGoogleSheetsSettings();
+  if (!s.webhookUrl) return res.status(400).json({ error: "No Google Sheets Web App URL set." });
+  const tasks = getAllTasks();
+  
+  try {
+    const response = await fetch(s.webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "sync_all", tasks }),
+    });
+    if (response.ok) {
+      appendSheetsLog("Bulk manual backup to Google Sheets completed.", true);
+      res.json({ success: true, count: tasks.length });
+    } else {
+      appendSheetsLog(`Bulk manual backup to Google Sheets failed. Status: ${response.status}`, false);
+      res.status(500).json({ error: "Sheets returned status " + response.status });
+    }
+  } catch (err: any) {
+    appendSheetsLog(`Bulk manual backup to Google Sheets failed: ${err.message}`, false);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/settings/sheets/restore", async (_req, res) => {
+  const s = getGoogleSheetsSettings();
+  if (!s.webhookUrl) return res.status(400).json({ error: "No Google Sheets Web App URL set." });
+  
+  try {
+    const response = await fetch(s.webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "fetch_all" }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.tasks)) {
+        // Clear tasks in db first
+        getDB().prepare("DELETE FROM tasks").run();
+        for (const t of data.tasks) {
+          upsertTask({
+            ...t,
+            publishPlacements: typeof t.publishPlacements === 'string' ? JSON.parse(t.publishPlacements) : (t.publishPlacements || {})
+          });
+        }
+        appendSheetsLog(`Successfully restored ${data.tasks.length} campaigns from Google Sheets.`, true);
+        res.json({ success: true, count: data.tasks.length });
+      } else {
+        appendSheetsLog("Restore failed: Apps script did not return a valid task list.", false);
+        res.status(500).json({ error: "Invalid payload from Google Apps Script." });
+      }
+    } else {
+      appendSheetsLog(`Restore failed. Sheets returned status: ${response.status}`, false);
+      res.status(500).json({ error: "Restore failed. Status " + response.status });
+    }
+  } catch (err: any) {
+    appendSheetsLog(`Restore failed: ${err.message}`, false);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Open Local Folder (Windows File Explorer) ───────────────────────────────
