@@ -495,8 +495,14 @@ export default function RoleWorkspace({
 
   if (activeRole === "Dashboard") {
     return (
-      <Dashboard tasks={tasks} activities={activities}
-        onTasksImported={onTasksImported || (async () => {})} currentRole={activeRole} />
+      <Dashboard
+        tasks={tasks}
+        activities={activities}
+        onTasksImported={onTasksImported || (async () => {})}
+        onUpdateTask={onUpdateTask}
+        onAddTask={onAddTask}
+        currentRole={activeRole}
+      />
     );
   }
 

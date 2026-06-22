@@ -8,13 +8,15 @@ import {
   TrendingUp, CheckCircle, CloudLightning, Database, LineChart, Slack,
   Download, Upload, Loader2, CheckCheck, AlertCircle, Send, Trash2,
   ExternalLink, Info, Eye, EyeOff, ToggleLeft, ToggleRight, FileText,
-  RefreshCw,
+  RefreshCw, Search, Filter, Calendar, Layers, Sliders, X, Check, Edit,
 } from "lucide-react";
 
 interface DashboardProps {
   tasks: Task[];
   activities: ActivityChange[];
   onTasksImported: () => Promise<void>;
+  onUpdateTask?: (id: string, updates: any) => Promise<void>;
+  onAddTask?: (taskData: any) => Promise<void>;
   currentRole: string;
 }
 
@@ -853,7 +855,27 @@ function DataPanel({ tasks, activities, onTasksImported }: {
 
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
 
-export default function Dashboard({ tasks, activities = [], onTasksImported, currentRole }: DashboardProps) {
+export default function Dashboard({ tasks, activities = [], onTasksImported, onUpdateTask, onAddTask, currentRole }: DashboardProps) {
+  // --- State for Pipeline Command Center ---
+  const [searchTerm, setSearchTerm] = useState("");
+  const [clientFilter, setClientFilter] = useState("All");
+  const [formatFilter, setFormatFilter] = useState("All");
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [selectedAdminTask, setSelectedAdminTask] = useState<Task | null>(null);
+  const [adminSaving, setAdminSaving] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [adminRevisionText, setAdminRevisionText] = useState("");
+  const [showAddCampaign, setShowAddCampaign] = useState(false);
+
+  // Form states for quick add
+  const [newClient, setNewClient] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [newFormat, setNewFormat] = useState<"Video" | "Graphic" | "Carousel">("Video");
+  const [newEditor, setNewEditor] = useState("Yasir");
+  const [newWriter, setNewWriter] = useState("Fatima Malik");
+  const [newBrief, setNewBrief] = useState("");
+  const [newDeadline, setNewDeadline] = useState("");
+
   const stageStats = {
     planning: tasks.filter((t) => t.stage === TaskStage.PLANNING).length,
     editing: tasks.filter((t) => t.stage === TaskStage.EDITING).length,
@@ -883,9 +905,165 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, cur
   ].filter((d) => d.value > 0);
 
   const uniqueClients = Array.from(new Set(tasks.map((t) => t.clientName))).filter(Boolean).length;
+  const clientAccounts = ["All", ...Array.from(new Set(tasks.map(t => t.clientName))).filter(Boolean)];
+
+  // Filter campaigns
+  const filteredTasks = tasks.filter(t => {
+    const matchesSearch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          t.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          t.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesClient = clientFilter === "All" || t.clientName === clientFilter;
+    const matchesFormat = formatFilter === "All" || t.format === formatFilter;
+    return matchesSearch && matchesClient && matchesFormat;
+  });
+
+  const triggerToast = (type: "success" | "error", text: string) => {
+    setToast({ type, text });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  // Crew arrays matching Team Config exactly
+  const teamEditorsList = ["Yasir", "Ammar", "Zainab"];
+  const teamDesignersList = ["Adila"];
+  const teamWritersList = ["Fatima Malik"];
+
+  // Quick state overrides
+  const handleStageChange = async (taskId: string, newStage: TaskStage) => {
+    if (!onUpdateTask) return;
+    setAdminSaving(true);
+    try {
+      await onUpdateTask(taskId, {
+        stage: newStage,
+        $actionUserName: "Administrator",
+        $actionUserRole: "Dashboard",
+        $actionDetails: `Stage manually overriden from "${tasks.find(t=>t.id===taskId)?.stage}" to "${newStage}" by Administrator.`,
+      });
+      triggerToast("success", `Campaign progressed to stage: ${newStage}`);
+      if (selectedAdminTask?.id === taskId) {
+        setSelectedAdminTask(prev => prev ? { ...prev, stage: newStage } : null);
+      }
+    } catch {
+      triggerToast("error", "Failed to update campaign stage.");
+    } finally {
+      setAdminSaving(false);
+    }
+  };
+
+  const handleReassignStaff = async (taskId: string, field: "assignedEditor" | "assignedWriter", newName: string) => {
+    if (!onUpdateTask) return;
+    setAdminSaving(true);
+    try {
+      await onUpdateTask(taskId, {
+        [field]: newName,
+        $actionUserName: "Administrator",
+        $actionUserRole: "Dashboard",
+        $actionDetails: `Reassigned ${field === "assignedEditor" ? "Editor" : "Writer"} of "${tasks.find(t=>t.id===taskId)?.title}" to "${newName}" by Administrator.`,
+      });
+      triggerToast("success", `Reassigned successfully to ${newName}`);
+      if (selectedAdminTask?.id === taskId) {
+        setSelectedAdminTask(prev => prev ? { ...prev, [field]: newName } : null);
+      }
+    } catch {
+      triggerToast("error", "Assignee change failed.");
+    } finally {
+      setAdminSaving(false);
+    }
+  };
+
+  const handleAdminRequestRevision = async (task: Task) => {
+    if (!onUpdateTask || !adminRevisionText.trim()) return;
+    setAdminSaving(true);
+    try {
+      const revision = {
+        id: "rev-" + Date.now(),
+        requestedBy: "Administrator",
+        requestedAt: new Date().toISOString(),
+        reason: adminRevisionText.trim(),
+        stage: task.stage,
+      };
+      const existing = task.revisions || [];
+      await onUpdateTask(task.id, {
+        stage: TaskStage.PLANNING,
+        revisions: [...existing, revision],
+        revisionCount: (task.revisionCount || 0) + 1,
+        $actionUserName: "Administrator",
+        $actionUserRole: "Dashboard",
+        $actionDetails: `🔄 Emergency Admin Revision: "${adminRevisionText.trim()}"`,
+      });
+      triggerToast("success", "Sent back to Brief/Planning stage with revision request.");
+      setAdminRevisionText("");
+      setSelectedAdminTask(null);
+    } catch {
+      triggerToast("error", "Failed to lodge revision request.");
+    } finally {
+      setAdminSaving(false);
+    }
+  };
+
+  const handleDeleteCampaign = async (taskId: string) => {
+    if (!window.confirm("WARNING: Are you absolutely sure you want to permanently delete this campaign? It will be removed from local SQLite storage and Google sheets backup.")) return;
+    setAdminSaving(true);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      if (res.ok) {
+        await onTasksImported();
+        triggerToast("success", "Campaign permanently deleted.");
+        setSelectedAdminTask(null);
+      } else {
+        triggerToast("error", "Server rejected campaign delete.");
+      }
+    } catch {
+      triggerToast("error", "Network connection failure during deletion.");
+    } finally {
+      setAdminSaving(false);
+    }
+  };
+
+  const handleCreateCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClient || !newTitle || !newDeadline || !newBrief || !onAddTask) return;
+    setAdminSaving(true);
+    try {
+      const isVideo = newFormat === "Video";
+      await onAddTask({
+        clientName: newClient,
+        title: `${newFormat} (${newDeadline})`,
+        format: newFormat,
+        assignedEditor: isVideo ? newEditor : "Adila", // Route correctly based on formats
+        assignedWriter: newWriter,
+        description: newBrief,
+        stage: TaskStage.PLANNING,
+        userName: "Administrator",
+        userRole: "Dashboard",
+        deadline: newDeadline,
+      });
+      triggerToast("success", "Admin campaign injected directly to Planning!");
+      setNewClient(""); setNewTitle(""); setNewDeadline(""); setNewBrief("");
+      setShowAddCampaign(false);
+    } catch {
+      triggerToast("error", "Campaign insertion failed.");
+    } finally {
+      setAdminSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
+      
+      {/* Toast Banner Notifications */}
+      {toast && (
+        <div className={`fixed bottom-5 right-5 z-50 flex items-center gap-2.5 px-4.5 py-3 rounded-2xl border text-xs font-semibold shadow-2xl animate-fade-in ${
+          toast.type === "success" 
+            ? "bg-emerald-950/95 border-emerald-500/35 text-emerald-300"
+            : "bg-rose-950/95 border-rose-500/35 text-rose-300"
+        }`}>
+          {toast.type === "success" ? <CheckCheck className="h-4 w-4 text-emerald-400" /> : <AlertCircle className="h-4 w-4 text-rose-400" />}
+          <span>{toast.text}</span>
+          <button onClick={() => setToast(null)} className="ml-1.5 opacity-60 hover:opacity-100">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -963,6 +1141,634 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, cur
         </div>
 
       </div>
+
+      {/* 🔍 LIVE PIPELINE COMMAND CENTER (ADMIN) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5">
+        
+        {/* Title & Actions Bar */}
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-800/80 pb-3.5">
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Sliders className="h-4.5 w-4.5 text-indigo-400 animate-pulse" /> Live Pipeline Command Center
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              Interactive administrative control console. Track campaigns, progress stages, re-assign team, and request re-dos.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddCampaign(!showAddCampaign)}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-indigo-600/10 cursor-pointer self-start sm:self-auto transition-colors"
+          >
+            {showAddCampaign ? <X className="h-3.5 w-3.5" /> : <Layers className="h-3.5 w-3.5" />}
+            {showAddCampaign ? "Cancel Injection" : "Inject Campaign"}
+          </button>
+        </div>
+
+        {/* Inject Campaign Form Overlay inside dashboard */}
+        {showAddCampaign && (
+          <form onSubmit={handleCreateCampaign} className="bg-slate-950 p-4.5 rounded-xl border border-indigo-900/30 space-y-4 animate-fade-in text-left">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5 pb-2 border-b border-indigo-950/50">
+              ⚡ Action: Inject Campaign directly into Briefing stage
+            </h4>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Select Client Account</label>
+                <select
+                  required
+                  value={newClient}
+                  onChange={(e) => setNewClient(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">-- Choose Account --</option>
+                  {["Roshan Zindagi","GymBhai","Powerlifting","Diabesity.Life","The Quarterdeck","TSC.Challenges Club",
+                    "Dr Ahmad Shahzad","Dr Ali Asad Khan","Dr Aman Ullah Bhalli","Dr Amir Shoukat","Dr Ashfaq Ali",
+                    "Dr Asif Islam","Dr Asim Munir Alvi","Dr Azmat Ali Khan","Dr Bilad Ul Islam","Dr Col Shakeel Mirza",
+                    "Dr Madeeha Nazar","Dr Mehboob Qadir","Dr Muhammad Usman","Dr Munir Azher Ch","Dr Qamar Sajjad",
+                    "Dr Salahudin Rind","Dr Shaista Kanwal","Dr Tahir Rasool","Dr Usman Musharraf",
+                    "Dr Mehmood Ul Hassan","Dr Shair Zaman Kakar","LDF"].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Campaign Title / Description</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. GymBhai Transformation Reels"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full bg-slate-905 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.8 text-xs text-slate-200 focus:outline-none focus:border-indigo-505"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Format Type</label>
+                <select
+                  value={newFormat}
+                  onChange={(e) => setNewFormat(e.target.value as any)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="Video">Video Reel / Short</option>
+                  <option value="Graphic">Graphic Image</option>
+                  <option value="Carousel">Carousel Layout</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Set Completion Deadline</label>
+                <input
+                  type="date"
+                  required
+                  value={newDeadline}
+                  onChange={(e) => setNewDeadline(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.8 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {newFormat === "Video" ? (
+                <div>
+                  <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Assign Editor Desk</label>
+                  <select
+                    value={newEditor}
+                    onChange={(e) => setNewEditor(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  >
+                    {teamEditorsList.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Assign Designer Desk</label>
+                  <select
+                    disabled
+                    className="w-full bg-slate-900/50 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-500 focus:outline-none"
+                  >
+                    <option value="Adila">Adila (Creative Graphic Designer)</option>
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Assign Social Writer Desk</label>
+                <select
+                  value={newWriter}
+                  onChange={(e) => setNewWriter(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  {teamWritersList.map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Creative Brief instruction instructions</label>
+              <textarea
+                required
+                placeholder="Details of visual theme, sound design, hook lines, copywriting, or special requests..."
+                rows={2}
+                value={newBrief}
+                onChange={(e) => setNewBrief(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-250 placeholder-slate-700 focus:outline-none focus:border-indigo-505 resize-none"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setShowAddCampaign(false)}
+                className="px-4 py-2 border border-slate-800 text-xs text-slate-400 hover:bg-slate-900/55 rounded-lg cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={adminSaving}
+                className="px-5 py-2 bg-indigo-650 hover:bg-indigo-600 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow"
+              >
+                {adminSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Layers className="h-3.5 w-3.5" />}
+                Save and Launch Campaign
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Filters and Views Bar */}
+        <div className="bg-slate-950 p-4.5 rounded-xl border border-slate-800 flex flex-col md:flex-row gap-4 items-center justify-between text-left">
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto">
+            
+            {/* Search Input */}
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500">
+                <Search className="h-3.5 w-3.5" />
+              </span>
+              <input
+                type="text"
+                placeholder="Search campaign topic..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8.5 pr-2.5 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 max-w-xs"
+              />
+            </div>
+
+            {/* Client Account Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-500 whitespace-nowrap">Client:</span>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
+              >
+                {clientAccounts.map(accountName => (
+                  <option key={accountName} value={accountName}>{accountName === "All" ? "All Accounts" : accountName}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Format Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-500 whitespace-nowrap">Format:</span>
+              <select
+                value={formatFilter}
+                onChange={(e) => setFormatFilter(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="All">All Formats</option>
+                <option value="Video">Video Reels</option>
+                <option value="Graphic">Graphic Images</option>
+                <option value="Carousel">Carousels</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Kanban / List Toggle Modes */}
+          <div className="flex items-center gap-2 border-l border-slate-800 pl-4 w-full sm:w-auto justify-end">
+            <span className="text-[10.5px] text-slate-500 font-mono">Layout:</span>
+            <div className="bg-slate-900 border border-slate-800 p-0.5 rounded-xl flex gap-1">
+              <button
+                type="button"
+                onClick={() => setViewMode("kanban")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === "kanban" 
+                    ? "bg-indigo-650 text-white" 
+                    : "text-slate-550 hover:text-slate-300"
+                }`}
+              >
+                Kanban
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === "list" 
+                    ? "bg-indigo-650 text-white" 
+                    : "text-slate-550 hover:text-slate-300"
+                }`}
+              >
+                List
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── WORKFLOW KANBAN BOARD VIEW ─── */}
+        {viewMode === "kanban" && (
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3.5 text-left items-start overflow-x-auto pb-4">
+            
+            {/* STAGE LANES CONFIG */}
+            {[
+              { id: TaskStage.PLANNING, title: "1. Brief & Review 📋", color: "indigo", border: "border-indigo-500/20", bg: "bg-indigo-500/5", colorHex: "#6366f1" },
+              { id: TaskStage.EDITING, title: "2. Visual Editing 🎬", color: "amber", border: "border-amber-500/20", bg: "bg-amber-500/5", colorHex: "#f59e0b" },
+              { id: TaskStage.WRITING, title: "3. SOCIAL COPY ✍️", color: "pink", border: "border-pink-500/20", bg: "bg-pink-500/5", colorHex: "#ec4899" },
+              { id: TaskStage.PUBLISHING, title: "4. PUBLISH READY 🚀", color: "sky", border: "border-sky-500/20", bg: "bg-sky-500/5", colorHex: "#0ea5e9" },
+              { id: TaskStage.COMPLETED, title: "5. OUT LIVE ✅", color: "emerald", border: "border-emerald-500/20", bg: "bg-emerald-505/5", colorHex: "#10b981" }
+            ].map(lane => {
+              const laneTasks = filteredTasks.filter(t => t.stage === lane.id);
+              return (
+                <div key={lane.id} className="min-w-[200px] flex-1 flex flex-col gap-3">
+                  
+                  {/* Lane Title */}
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-between ${lane.border} ${lane.bg}`}>
+                    <span className="text-[11.5px] font-bold text-slate-200 uppercase tracking-wide">{lane.title}</span>
+                    <span className="px-2 py-0.5 bg-slate-900 border border-slate-800 text-[10.5px] font-bold rounded-lg text-slate-400">
+                      {laneTasks.length}
+                    </span>
+                  </div>
+
+                  {/* Lane Scroll Content Area */}
+                  <div className="space-y-2.5 min-h-[350px] bg-slate-950/40 p-2 rounded-xl border border-slate-905 max-h-[500px] overflow-y-auto">
+                    {laneTasks.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center p-8 border border-dashed border-slate-800 rounded-lg text-[10px] text-slate-650 h-[300px]">
+                        <span>0 Campaigns</span>
+                      </div>
+                    ) : (
+                      laneTasks.map(task => {
+                        const isVideo = task.format === "Video";
+                        const isCarousel = task.format === "Carousel";
+                        const badgeColor = isVideo ? "text-rose-450 bg-rose-500/10 border-rose-500/15" : isCarousel ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/15" : "text-blue-400 bg-blue-500/10 border-blue-500/15";
+                        const formatIcon = isVideo ? "🎬" : isCarousel ? "🎠" : "🎨";
+                        
+                        return (
+                          <div
+                            key={task.id}
+                            onClick={() => setSelectedAdminTask(task)}
+                            className="bg-slate-900 border border-slate-8 hover:border-slate-700/80 p-3 rounded-xl cursor-pointer hover:bg-slate-850/80 transition-all space-y-2 relative shadow shadow-black group"
+                          >
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="text-[10px] bg-slate-950 border border-slate-800 text-slate-400 font-bold px-1.5 py-0.5 rounded uppercase max-w-[110px] truncate">
+                                {task.clientName}
+                              </span>
+                              <span className={`text-[9.5px] font-black px-1.5 py-0.2 rounded border uppercase font-mono ${badgeColor}`}>
+                                {formatIcon} {task.format || "Video"}
+                              </span>
+                            </div>
+
+                            <h5 className="text-[11.5px] font-semibold text-slate-200 line-clamp-2 leading-tight">
+                              {task.title.replace(`(${task.deadline})`, "").trim() || "Untitled Campaign"}
+                            </h5>
+
+                            {/* Info grid */}
+                            <div className="grid grid-cols-2 gap-1 border-t border-slate-950 pt-2 text-[9.5px] text-slate-500">
+                              <div>
+                                <span className="block opacity-60">Visual Crew:</span>
+                                <strong className="text-slate-300 font-normal">{task.assignedEditor || "Adila"}</strong>
+                              </div>
+                              <div>
+                                <span className="block opacity-60">Copy Crew:</span>
+                                <strong className="text-slate-300 font-normal">{task.assignedWriter || "Fatima"}</strong>
+                              </div>
+                            </div>
+
+                            {/* Revision Indicator Badge */}
+                            {task.revisionCount ? (
+                              <div className="absolute right-2.5 bottom-2.5 flex items-center gap-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[8.5px] font-mono px-1 py-0.2 rounded-md">
+                                <RefreshCw className="h-2.5 w-2.5 animate-spin-slow" />
+                                <span>R{task.revisionCount}</span>
+                              </div>
+                            ) : null}
+
+                            {/* Quick Advance visual bar on cards hover helper */}
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-between gap-1.5 pt-1.5 border-t border-dashed border-slate-800">
+                              <span className="text-[8.5px] text-zinc-500 self-center font-mono">Admin actions:</span>
+                              <div className="flex gap-1">
+                                {lane.id !== TaskStage.PLANNING && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const prevStagesMap: Record<string, TaskStage> = {
+                                        editing: TaskStage.PLANNING,
+                                        writing: TaskStage.EDITING,
+                                        publishing: TaskStage.WRITING,
+                                        completed: TaskStage.PUBLISHING
+                                      };
+                                      handleStageChange(task.id, prevStagesMap[lane.id]);
+                                    }}
+                                    className="p-1 hover:bg-slate-800 text-rose-400 rounded-md border border-slate-950 hover:border-slate-750"
+                                    title="Regress stage"
+                                  >
+                                    &larr;
+                                  </button>
+                                )}
+                                {lane.id !== TaskStage.COMPLETED && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const nextStagesMap: Record<string, TaskStage> = {
+                                        planning: TaskStage.EDITING,
+                                        editing: TaskStage.WRITING,
+                                        writing: TaskStage.PUBLISHING,
+                                        publishing: TaskStage.COMPLETED
+                                      };
+                                      handleStageChange(task.id, nextStagesMap[lane.id]);
+                                    }}
+                                    className="p-1 hover:bg-slate-800 text-emerald-400 rounded-md border border-slate-950 hover:border-slate-750 font-bold"
+                                    title="Advance stage"
+                                  >
+                                    &rarr;
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ─── COMPREHENSIVE TABULAR TABLE VIEW ─── */}
+        {viewMode === "list" && (
+          <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950 text-left">
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11.5px] text-slate-350">
+                <thead className="bg-slate-900 border-b border-slate-800 text-[10.5px] uppercase tracking-wider text-slate-400 font-mono">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Client</th>
+                    <th className="px-4 py-3 font-semibold">Campaign / Title</th>
+                    <th className="px-4 py-3 font-semibold">Format</th>
+                    <th className="px-4 py-3 font-semibold">Stage Status</th>
+                    <th className="px-4 py-3 font-semibold">Visual Crew</th>
+                    <th className="px-4 py-3 font-semibold">Copy Writer</th>
+                    <th className="px-4 py-3 font-semibold">Directory Path / Link</th>
+                    <th className="px-4 py-3 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/65">
+                  {filteredTasks.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
+                        No active campaigns match the selected filters. Change search parameters to list items.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTasks.map(task => {
+                      const colorsMap: Record<string, string> = {
+                        planning: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
+                        editing: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+                        writing: "bg-pink-500/10 text-pink-400 border border-pink-500/20",
+                        publishing: "bg-sky-500/10 text-sky-400 border border-sky-505/20",
+                        completed: "bg-emerald-500/10 text-emerald-400 border border-emerald-505/20"
+                      };
+
+                      return (
+                        <tr key={task.id} className="hover:bg-slate-900/50 group">
+                          <td className="px-4 py-3 font-bold text-slate-200">
+                            {task.clientName}
+                          </td>
+                          <td className="px-4 py-3 text-slate-300 max-w-xs truncate">
+                            {task.title.replace(`(${task.deadline})`, "").trim()}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-semibold text-slate-400">{task.format}</span>
+                          </td>
+                          <td className="px-4 py-3 uppercase text-[9.5px] font-bold">
+                            <span className={`px-2 py-0.5 rounded-lg ${colorsMap[task.stage] || "bg-slate-800 text-slate-400"}`}>
+                              {task.stage}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={task.assignedEditor || "Yasir"}
+                              onChange={(e) => handleReassignStaff(task.id, "assignedEditor", e.target.value)}
+                              className="bg-transparent hover:bg-slate-900 border border-transparent hover:border-slate-850 px-1 rounded-md text-[11.5px] text-slate-350 focus:outline-none"
+                            >
+                              {teamEditorsList.concat(teamDesignersList).map(e => <option key={e} value={e} className="bg-slate-950">{e}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={task.assignedWriter || "Fatima Malik"}
+                              onChange={(e) => handleReassignStaff(task.id, "assignedWriter", e.target.value)}
+                              className="bg-transparent hover:bg-slate-900 border border-transparent hover:border-slate-850 px-1 rounded-md text-[11.5px] text-slate-350 focus:outline-none"
+                            >
+                              {teamWritersList.map(w => <option key={w} value={w} className="bg-slate-950">{w}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-xs max-w-xs truncate text-slate-500 font-mono">
+                            {task.editedFilePath || task.rawFootagePath || task.editedFileLink || "No path set"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100">
+                              <button
+                                onClick={() => setSelectedAdminTask(task)}
+                                className="px-2 py-1 bg-slate-900 border border-slate-800 hover:border-slate-500 hover:bg-slate-850 text-[10px] font-bold rounded-lg text-slate-300 transition-colors"
+                              >
+                                View / Edit
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* ─── DETAILED VIEW OVERLAY MODAL (ADMIN CONTROL) ─── */}
+      {selectedAdminTask && (
+        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 overflow-y-auto animate-fade-in text-left">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-2xl text-slate-200 relative space-y-4 shadow-2xl">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] bg-indigo-500 font-extrabold text-white px-2 py-0.5 rounded uppercase tracking-wider font-mono">Administration Hub</span>
+                  <span className="text-xs text-slate-400">Campaign #{selectedAdminTask.id}</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-100">
+                  {selectedAdminTask.clientName} &mdash; {selectedAdminTask.title.replace(`(${selectedAdminTask.deadline})`, "").trim()}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedAdminTask(null)}
+                className="p-1.5 bg-slate-950/80 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer"
+              >
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+
+            {/* Campaign details content area */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              
+              <div className="space-y-3">
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+                  <span className="text-[9.5px] uppercase font-mono text-indigo-400 font-bold block">Creative Brief</span>
+                  <p className="text-slate-300 leading-normal font-sans pr-1 max-h-36 overflow-y-auto font-normal">
+                    {selectedAdminTask.description || "No creative briefing parameters provided for this task."}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2.5">
+                  <div className="bg-slate-955 bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1">
+                    <span className="text-[9.5px] uppercase font-mono text-teal-400 font-bold block">Raw Footage Location</span>
+                    <span className="text-[10px] block font-mono text-slate-400 truncate">{selectedAdminTask.rawFootagePath || "No local path specified"}</span>
+                  </div>
+
+                  <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1">
+                    <span className="text-[9.5px] uppercase font-mono text-emerald-400 font-bold block">Edited Deliverable Location</span>
+                    <span className="text-[10px] block font-mono text-slate-400 truncate">{selectedAdminTask.editedFilePath || "No local folder set"}</span>
+                    {selectedAdminTask.editedFileLink && (
+                      <a
+                        href={selectedAdminTask.editedFileLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[9.5px] text-blue-400 font-bold flex items-center gap-1 hover:underline pt-0.5"
+                      >
+                        <ExternalLink className="h-3 w-3" /> View Shared Cloud Assets
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+                  <span className="text-[9.5px] uppercase font-mono text-pink-400 font-bold block">Copy writing & Caption Panel</span>
+                  <div>
+                    <span className="text-[9.5px] font-mono text-slate-550 block">Body Copy:</span>
+                    <p className="text-slate-300 text-[10.5px] bg-slate-900 border border-slate-850 p-2 rounded-lg leading-relaxed max-h-24 overflow-y-auto whitespace-pre-wrap mt-1">
+                      {selectedAdminTask.captionText || "Pending social copywriting desk."}
+                    </p>
+                  </div>
+                  {selectedAdminTask.hashtags && (
+                    <div>
+                      <span className="text-[9.5px] font-mono text-slate-550 block">Hashtags:</span>
+                      <p className="text-slate-400 text-[10px] mt-0.5 font-mono">{selectedAdminTask.hashtags}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+                  <span className="text-[9.5px] uppercase font-mono text-slate-400 font-bold block">Workflow Stage Overrides</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { id: TaskStage.PLANNING, label: "To Brief" },
+                      { id: TaskStage.EDITING, label: "To Editing" },
+                      { id: TaskStage.WRITING, label: "To Copy" },
+                      { id: TaskStage.PUBLISHING, label: "To Publish" },
+                      { id: TaskStage.COMPLETED, label: "Set Competed" }
+                    ].map(stageBtn => (
+                      <button
+                        key={stageBtn.id}
+                        type="button"
+                        onClick={() => handleStageChange(selectedAdminTask.id, stageBtn.id)}
+                        disabled={adminSaving}
+                        className={`py-1.5 px-2 text-[10.5px] font-bold rounded-lg border transition-all cursor-pointer ${
+                          selectedAdminTask.stage === stageBtn.id
+                            ? "bg-indigo-600/20 text-indigo-400 border-indigo-500/40"
+                            : "bg-slate-900 border-slate-800 hover:border-slate-650 hover:bg-slate-850 text-slate-400"
+                        }`}
+                      >
+                        {stageBtn.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Revisions timeline list inside admin modal */}
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 text-xs">
+              <span className="text-[9.5px] uppercase font-mono text-amber-500 font-bold block flex items-center gap-1">
+                <RefreshCw className="h-3 w-3 animate-spin-slow" /> Revision & Remake Logs Timeline ({selectedAdminTask.revisions?.length || 0})
+              </span>
+              
+              {selectedAdminTask.revisions && selectedAdminTask.revisions.length > 0 ? (
+                <div className="space-y-2 max-h-24 overflow-y-auto pr-1">
+                  {selectedAdminTask.revisions.map((rev, idx) => (
+                    <div key={rev.id || idx} className="bg-slate-900 border border-slate-850 p-2.5 rounded-lg text-[10px] leading-relaxed">
+                      <div className="flex justify-between text-[9px] text-slate-500 pb-1 mb-1 border-b border-slate-950">
+                        <span>Requested by: <strong>{rev.requestedBy}</strong></span>
+                        <span>{new Date(rev.requestedAt).toLocaleString()}</span>
+                      </div>
+                      <p className="text-amber-200">Re-do instructions: "{rev.reason}"</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] text-slate-500 italic pl-1">No revision cycles logged on this deliverable.</p>
+              )}
+            </div>
+
+            {/* Quick Staff reassignment & Redo command box */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end bg-slate-950 p-3.5 rounded-2xl border border-dashed border-slate-800 text-xs">
+              
+              <div className="space-y-1.5 text-left">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-450 text-amber-400">Trigger Custom Administrative Revision</label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Enter visual or copy remake instructions..."
+                    value={adminRevisionText}
+                    onChange={(e) => setAdminRevisionText(e.target.value)}
+                    className="flex-1 bg-slate-905 bg-slate-900 border border-slate-800 rounded-lg px-2 text-[10.5px] text-slate-200 focus:outline-none focus:border-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAdminRequestRevision(selectedAdminTask)}
+                    disabled={adminSaving || !adminRevisionText.trim()}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-[10.5px] rounded-lg cursor-pointer disabled:opacity-50 transition-colors whitespace-nowrap"
+                  >
+                    Send Back
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCampaign(selectedAdminTask.id)}
+                  disabled={adminSaving}
+                  className="px-4 py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/20 text-rose-300 font-bold rounded-lg text-[10px] inline-flex items-center gap-1.5 cursor-pointer shadow transition-all duration-150"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Permanently Delete Campaign
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* D3 Bottleneck */}
       <D3BottleneckChart tasks={tasks} activities={activities} />
