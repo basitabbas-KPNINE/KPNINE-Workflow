@@ -856,6 +856,16 @@ function DataPanel({ tasks, activities, onTasksImported }: {
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
 
 export default function Dashboard({ tasks, activities = [], onTasksImported, onUpdateTask, onAddTask, currentRole }: DashboardProps) {
+  const DEFAULT_CLIENTS = [
+    "Roshan Zindagi","GymBhai","Powerlifting","Diabesity.Life","The Quarterdeck","TSC.Challenges Club",
+    "Dr Ahmad Shahzad","Dr Ali Asad Khan","Dr Aman Ullah Bhalli","Dr Amir Shoukat","Dr Ashfaq Ali",
+    "Dr Asif Islam","Dr Asim Munir Alvi","Dr Azmat Ali Khan","Dr Bilad Ul Islam","Dr Col Shakeel Mirza",
+    "Dr Madeeha Nazar","Dr Mehboob Qadir","Dr Muhammad Usman","Dr Munir Azher Ch","Dr Qamar Sajjad",
+    "Dr Salahudin Rind","Dr Shaista Kanwal","Dr Tahir Rasool","Dr Usman Musharraf",
+    "Dr Mehmood Ul Hassan","Dr Shair Zaman Kakar","LDF"
+  ];
+  const allClients = Array.from(new Set([...DEFAULT_CLIENTS, ...tasks.map(t => t.clientName)])).filter(Boolean).sort();
+
   // --- State for Pipeline Command Center ---
   const [searchTerm, setSearchTerm] = useState("");
   const [clientFilter, setClientFilter] = useState("All");
@@ -1210,12 +1220,7 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
                   >
                     <option value="">-- Choose Account --</option>
-                    {["Roshan Zindagi","GymBhai","Powerlifting","Diabesity.Life","The Quarterdeck","TSC.Challenges Club",
-                      "Dr Ahmad Shahzad","Dr Ali Asad Khan","Dr Aman Ullah Bhalli","Dr Amir Shoukat","Dr Ashfaq Ali",
-                      "Dr Asif Islam","Dr Asim Munir Alvi","Dr Azmat Ali Khan","Dr Bilad Ul Islam","Dr Col Shakeel Mirza",
-                      "Dr Madeeha Nazar","Dr Mehboob Qadir","Dr Muhammad Usman","Dr Munir Azher Ch","Dr Qamar Sajjad",
-                      "Dr Salahudin Rind","Dr Shaista Kanwal","Dr Tahir Rasool","Dr Usman Musharraf",
-                      "Dr Mehmood Ul Hassan","Dr Shair Zaman Kakar","LDF"].map(c => (
+                    {allClients.map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
