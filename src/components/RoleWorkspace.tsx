@@ -606,375 +606,208 @@ export default function RoleWorkspace({
 
       {/* ═══════════════════ PLANNER ═══════════════════ */}
       {activeRole === "Planner" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          {/* Left Column: Create New Campaign Brief Form */}
-          <form onSubmit={handlePlannerSubmit} className="space-y-4">
-            <div className={`p-4 rounded-xl border space-y-4 ${
-              darkMode ? "bg-zinc-900/50 border-zinc-850" : "bg-slate-50 border-slate-200"
+        <form onSubmit={handlePlannerSubmit} className="space-y-4 max-w-3xl mx-auto">
+          <div className={`p-4 rounded-xl border space-y-4 ${
+            darkMode ? "bg-zinc-900/50 border-zinc-850" : "bg-slate-50 border-slate-200"
+          }`}>
+            <h3 className={`text-xs font-mono uppercase tracking-wider font-bold ${
+              darkMode ? "text-indigo-400" : "text-indigo-600"
             }`}>
-              <h3 className={`text-xs font-mono uppercase tracking-wider font-bold ${
-                darkMode ? "text-indigo-400" : "text-indigo-600"
-              }`}>
-                📝 New Campaign Brief
-              </h3>
+              📝 New Campaign Brief
+            </h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className={`block text-xs font-semibold ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
-                      Client Name *
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setIsCustomClientMode(!isCustomClientMode)}
-                      className="text-[10px] text-indigo-500 hover:underline font-bold focus:outline-none"
-                    >
-                      {isCustomClientMode ? "Choose Existing" : "+ Add New Client"}
-                    </button>
-                  </div>
-                  {isCustomClientMode ? (
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter new client brand/account name..."
-                      value={customPlannerClient}
-                      onChange={(e) => setCustomPlannerClient(e.target.value)}
-                      className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
-                        darkMode 
-                          ? "bg-zinc-950 border border-zinc-850 text-zinc-100 focus:border-indigo-500" 
-                          : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
-                      }`}
-                    />
-                  ) : (
-                    <select 
-                      value={plannerClient} 
-                      onChange={(e) => setPlannerClient(e.target.value)}
-                      className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
-                        darkMode 
-                          ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
-                          : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
-                      }`} 
-                      required
-                    >
-                      <option value="">-- Choose Client --</option>
-                      {allClients.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div>
-                  <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
-                    Project Deadline *
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className={`block text-xs font-semibold ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
+                    Client Name *
                   </label>
-                  <input 
-                    type="date"
-                    value={plannerDeadline} 
-                    onChange={(e) => setPlannerDeadline(e.target.value)}
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomClientMode(!isCustomClientMode)}
+                    className="text-[10px] text-indigo-500 hover:underline font-bold focus:outline-none"
+                  >
+                    {isCustomClientMode ? "Choose Existing" : "+ Add New Client"}
+                  </button>
+                </div>
+                {isCustomClientMode ? (
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter new client brand/account name..."
+                    value={customPlannerClient}
+                    onChange={(e) => setCustomPlannerClient(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                      darkMode 
+                        ? "bg-zinc-950 border border-zinc-850 text-zinc-100 focus:border-indigo-500" 
+                        : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                    }`}
+                  />
+                ) : (
+                  <select 
+                    value={plannerClient} 
+                    onChange={(e) => setPlannerClient(e.target.value)}
                     className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
                       darkMode 
                         ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
                         : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
                     }`} 
-                    required 
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
-                    Format
-                  </label>
-                  <select 
-                    value={plannerFormat} 
-                    onChange={(e) => setPlannerFormat(e.target.value as any)}
-                    className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
-                      darkMode 
-                        ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-505" 
-                        : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
-                    }`}
+                    required
                   >
-                    <option value="Video">Video / Reel / Short</option>
-                    <option value="Carousel">Instagram Carousel</option>
-                    <option value="Graphic">Graphic / Image</option>
+                    <option value="">-- Choose Client --</option>
+                    {allClients.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
                   </select>
-                </div>
+                )}
+              </div>
 
+              <div>
+                <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
+                  Project Deadline *
+                </label>
+                <input 
+                  type="date"
+                  value={plannerDeadline} 
+                  onChange={(e) => setPlannerDeadline(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                    darkMode 
+                      ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
+                      : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                  }`} 
+                  required 
+                />
+              </div>
+
+              <div>
+                <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
+                  Format
+                </label>
+                <select 
+                  value={plannerFormat} 
+                  onChange={(e) => setPlannerFormat(e.target.value as any)}
+                  className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                    darkMode 
+                      ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-505" 
+                      : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                  }`}
+                >
+                  <option value="Video">Video / Reel / Short</option>
+                  <option value="Carousel">Instagram Carousel</option>
+                  <option value="Graphic">Graphic / Image</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
+                  Starting Workflow Stage
+                </label>
+                <select 
+                  value={plannerStage} 
+                  onChange={(e) => setPlannerStage(e.target.value as any)}
+                  className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                    darkMode 
+                      ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
+                      : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                  }`}
+                >
+                  <option value={TaskStage.PLANNING}>1. Brief & Review (Planning)</option>
+                  <option value={TaskStage.EDITING}>2. Visual Editing (Editing)</option>
+                  <option value={TaskStage.WRITING}>3. Social Copy (Writing)</option>
+                  <option value={TaskStage.PUBLISHING}>4. Publish Ready (Publishing)</option>
+                  <option value={TaskStage.COMPLETED}>5. Out Live (Completed)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
-                    Starting Workflow Stage
+                    Assign Editor/Designer
                   </label>
                   <select 
-                    value={plannerStage} 
-                    onChange={(e) => setPlannerStage(e.target.value as any)}
+                    value={plannerEditor} 
+                    onChange={(e) => setPlannerEditor(e.target.value)}
                     className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
                       darkMode 
                         ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
                         : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
                     }`}
                   >
-                    <option value={TaskStage.PLANNING}>1. Brief & Review (Planning)</option>
-                    <option value={TaskStage.EDITING}>2. Visual Editing (Editing)</option>
-                    <option value={TaskStage.WRITING}>3. Social Copy (Writing)</option>
-                    <option value={TaskStage.PUBLISHING}>4. Publish Ready (Publishing)</option>
-                    <option value={TaskStage.COMPLETED}>5. Out Live (Completed)</option>
+                    {plannerFormat === "Video"
+                      ? TEAM_MEMBERS.editors.map((n) => <option key={n} value={n}>{n}</option>)
+                      : TEAM_MEMBERS.designers.map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
-                      Assign Editor/Designer
-                    </label>
-                    <select 
-                      value={plannerEditor} 
-                      onChange={(e) => setPlannerEditor(e.target.value)}
-                      className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
-                        darkMode 
-                          ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
-                          : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
-                      }`}
-                    >
-                      {plannerFormat === "Video"
-                        ? TEAM_MEMBERS.editors.map((n) => <option key={n} value={n}>{n}</option>)
-                        : TEAM_MEMBERS.designers.map((n) => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
-                      Assign Writer
-                    </label>
-                    <select 
-                      value={plannerWriter} 
-                      onChange={(e) => setPlannerWriter(e.target.value)}
-                      className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
-                        darkMode 
-                          ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
-                          : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
-                      }`}
-                    >
-                      {TEAM_MEMBERS.writers.map((n) => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                  </div>
+                <div>
+                  <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
+                    Assign Writer
+                  </label>
+                  <select 
+                    value={plannerWriter} 
+                    onChange={(e) => setPlannerWriter(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                      darkMode 
+                        ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
+                        : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                    }`}
+                  >
+                    {TEAM_MEMBERS.writers.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
-                  Creative Brief *
-                </label>
-                <textarea 
-                  placeholder="Detail layout, audio, pacing, key messages, visual style..."
-                  rows={3} 
-                  value={plannerBrief} 
-                  onChange={(e) => setPlannerBrief(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none resize-none ${
-                    darkMode 
-                      ? "bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder-zinc-650 focus:border-indigo-500" 
-                      : "bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:border-blue-500"
-                  }`} 
-                  required 
-                />
-              </div>
-
-              <LocalPathInput
-                label="Raw Footage Folder Path (optional)"
-                value={plannerRawPath}
-                onChange={setPlannerRawPath}
-                placeholder="D:\Footage\GymBhai\Video4"
-                darkMode={darkMode}
+            <div>
+              <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
+                Creative Brief *
+              </label>
+              <textarea 
+                placeholder="Detail layout, audio, pacing, key messages, visual style..."
+                rows={3} 
+                value={plannerBrief} 
+                onChange={(e) => setPlannerBrief(e.target.value)}
+                className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none resize-none ${
+                  darkMode 
+                    ? "bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder-zinc-650 focus:border-indigo-500" 
+                    : "bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:border-blue-500"
+                }`} 
+                required 
               />
             </div>
 
-            <div className="flex justify-end">
-              <button 
-                type="submit" 
-                disabled={isSubmittingTask || !plannerClient || !plannerDeadline || !plannerBrief}
-                className={`px-4 py-2 text-white rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-md ${
-                  darkMode 
-                    ? "bg-indigo-650 hover:bg-indigo-600 shadow-indigo-950/40" 
-                    : "bg-blue-600 hover:bg-blue-700 shadow-blue-105"
-                }`}
-              >
-                {isSubmittingTask ? (
-                  <>
-                    <Loader2 className="h-3 w-3 animate-spin" /> 
-                    Adding...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4" /> 
-                    Deploy to Team Board
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-
-          {/* Right Column: Planning Stage Queue (Deploy / Add Footage Intake) */}
-          <div className="space-y-4">
-            <div className={`p-4 rounded-xl border space-y-4 ${
-              darkMode ? "bg-zinc-900/50 border-zinc-850" : "bg-slate-50 border-slate-200"
-            }`}>
-              <div className="flex items-center justify-between border-b pb-2 mb-2 border-slate-800/50">
-                <h3 className={`text-xs font-mono uppercase tracking-wider font-bold ${
-                  darkMode ? "text-emerald-400" : "text-emerald-600"
-                }`}>
-                  📁 Active Planning & Footage Queue ({tasks.filter(t => t.stage === TaskStage.PLANNING).length})
-                </h3>
-              </div>
-
-              {selectedPlanningTaskId ? (
-                /* Selected Task Delivery Workspace Form */
-                <form onSubmit={handlePlanningDeploy} className="space-y-4">
-                  <div className={`p-3.5 rounded-xl space-y-3 border ${
-                    darkMode ? "bg-zinc-950 border-zinc-800" : "bg-white border-slate-200 shadow-sm"
-                  }`}>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className="text-[10px] uppercase font-mono font-bold bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">
-                          Selected Campaign
-                        </span>
-                        <h4 className="text-xs font-extrabold text-zinc-100 mt-1">
-                          {lockedPlanningTask?.clientName} &mdash; {lockedPlanningTask?.title}
-                        </h4>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedPlanningTaskId("");
-                          setLockedPlanningTask(null);
-                        }}
-                        className="text-xs text-zinc-400 hover:text-white p-1 bg-zinc-900 border border-zinc-800 rounded-lg cursor-pointer"
-                        title="Deselect Campaign"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-850 text-xs text-zinc-300">
-                      <span className="text-[9px] uppercase font-mono text-indigo-400 font-bold block mb-0.5">Brief details:</span>
-                      <p className="max-h-24 overflow-y-auto leading-relaxed pr-1 whitespace-pre-wrap font-sans">
-                        {lockedPlanningTask?.description || "No creative details provided."}
-                      </p>
-                    </div>
-
-                    <div className="space-y-3 pt-1">
-                      <div>
-                        <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
-                          Raw Footage Link / Shared Drive Folder (optional)
-                        </label>
-                        <input
-                          type="url"
-                          placeholder="https://drive.google.com/drive/folders/..."
-                          value={planningRawLink}
-                          onChange={(e) => setPlanningRawLink(e.target.value)}
-                          className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
-                            darkMode 
-                              ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-emerald-500" 
-                              : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
-                          }`}
-                        />
-                      </div>
-
-                      <LocalPathInput
-                        label="Local Raw Footage Folder Path (optional)"
-                        value={planningRawPath}
-                        onChange={setPlanningRawPath}
-                        placeholder="D:\Footage\GymBhai\Video4"
-                        darkMode={darkMode}
-                      />
-
-                      <div>
-                        <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
-                          Creative & Footage Notes for Editor
-                        </label>
-                        <textarea
-                          placeholder="Include file lists, preferred sequence, music preferences, or special remarks..."
-                          value={planningFootageNotes}
-                          onChange={(e) => setPlanningFootageNotes(e.target.value)}
-                          rows={3}
-                          className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none resize-none ${
-                            darkMode 
-                              ? "bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder-zinc-650 focus:border-emerald-500" 
-                              : "bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:border-blue-500"
-                          }`}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end pt-2">
-                      <button
-                        type="submit"
-                        disabled={isDeployingPlanning}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        {isDeployingPlanning ? (
-                          <>
-                            <Loader2 className="h-3 w-3 animate-spin" /> Deploying...
-                          </>
-                        ) : (
-                          <>
-                            Deploy to Visual Editing &rarr;
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              ) : (
-                /* Scrollable List of planning stage tasks */
-                <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
-                  {tasks.filter(t => t.stage === TaskStage.PLANNING).length === 0 ? (
-                    <p className="text-xs text-zinc-500 italic py-8 text-center bg-zinc-950/20 border border-dashed border-zinc-800 rounded-xl">
-                      No campaigns currently in Planning. Add a campaign with 'Brief & Review' starting stage to queue them here.
-                    </p>
-                  ) : (
-                    tasks.filter(t => t.stage === TaskStage.PLANNING).map(task => (
-                      <div
-                        key={task.id}
-                        onClick={() => handlePlanningTaskSelect(task.id)}
-                        className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
-                          darkMode 
-                            ? "bg-zinc-950 border-zinc-850 hover:border-indigo-500/60 hover:bg-zinc-900" 
-                            : "bg-white border-slate-200 shadow-sm hover:border-indigo-500 hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="flex justify-between items-start gap-2 mb-1.5">
-                          <span className="text-[10px] font-bold uppercase font-mono text-indigo-400 bg-indigo-500/10 border border-indigo-500/15 px-2 py-0.5 rounded-md">
-                            {task.clientName}
-                          </span>
-                          <span className="text-[9.5px] font-mono text-zinc-500">
-                            Due: {task.deadline}
-                          </span>
-                        </div>
-                        <h4 className="text-[11.5px] font-extrabold text-zinc-200 leading-snug">
-                          {task.title}
-                        </h4>
-                        <p className="text-[10.5px] text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
-                          {task.description || "No creative details."}
-                        </p>
-                        <div className="flex justify-between items-center mt-3 pt-2 border-t border-dashed border-zinc-900/80">
-                          <span className="text-[9px] text-zinc-500 font-mono">Format: <strong>{task.format}</strong></span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePlanningTaskSelect(task.id);
-                            }}
-                            className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5 cursor-pointer"
-                          >
-                            Add Footage & Deploy &rarr;
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+            <LocalPathInput
+              label="Raw Footage Folder Path (optional)"
+              value={plannerRawPath}
+              onChange={setPlannerRawPath}
+              placeholder="D:\Footage\GymBhai\Video4"
+              darkMode={darkMode}
+            />
           </div>
-        </div>
+
+          <div className="flex justify-end">
+            <button 
+              type="submit" 
+              disabled={isSubmittingTask || (isCustomClientMode ? !customPlannerClient.trim() : !plannerClient) || !plannerDeadline || !plannerBrief}
+              className={`px-4 py-2 text-white rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-md ${
+                darkMode 
+                  ? "bg-indigo-650 hover:bg-indigo-600 shadow-indigo-950/40" 
+                  : "bg-blue-600 hover:bg-blue-700 shadow-blue-105"
+              }`}
+            >
+              {isSubmittingTask ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" /> 
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" /> 
+                  Deploy to Team Board
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       )}
 
       {/* ═══════════════════ EDITOR ═══════════════════ */}

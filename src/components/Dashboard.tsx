@@ -698,8 +698,28 @@ function DataPanel({ tasks, activities, onTasksImported }: {
   onTasksImported: () => Promise<void>;
 }) {
   const [importing, setImporting] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error" | ""; msg: string }>({ type: "", msg: "" });
   const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleResetDatabase() {
+    if (!window.confirm("⚠️ ARE YOU SURE? This will permanently delete all campaigns and activity logs for production reset! This cannot be undone.")) return;
+    setResetting(true);
+    try {
+      const res = await fetch("/api/reset", { method: "POST" });
+      if (res.ok) {
+        await onTasksImported();
+        setStatus({ type: "success", msg: "Database successfully cleared and reset for production!" });
+      } else {
+        throw new Error("Reset failed");
+      }
+    } catch (err: any) {
+      setStatus({ type: "error", msg: err.message || "Failed to reset database" });
+    } finally {
+      setResetting(false);
+    }
+    setTimeout(() => setStatus({ type: "", msg: "" }), 5000);
+  }
 
   function exportCSV() {
     window.open("/api/export/csv", "_blank");
@@ -818,6 +838,14 @@ function DataPanel({ tasks, activities, onTasksImported }: {
         >
           {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
           Import from CSV
+        </button>
+        <button
+          onClick={handleResetDatabase}
+          disabled={resetting}
+          className="col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-rose-650/10 hover:bg-rose-600/20 border border-rose-500/20 text-rose-300 rounded-xl text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50"
+        >
+          {resetting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          Reset Database for Production (Clear All)
         </button>
       </div>
 
