@@ -167,6 +167,9 @@ export default function RoleWorkspace({
 
   // ── Planner state ──
   const [plannerClient, setPlannerClient] = useState("");
+  const [customPlannerClient, setCustomPlannerClient] = useState("");
+  const [isCustomClientMode, setIsCustomClientMode] = useState(false);
+  const [plannerStage, setPlannerStage] = useState<TaskStage>(TaskStage.EDITING);
   const [plannerDeadline, setPlannerDeadline] = useState("");
   const [plannerFormat, setPlannerFormat] = useState<"Video" | "Graphic" | "Carousel">("Video");
   const [plannerEditor, setPlannerEditor] = useState(TEAM_MEMBERS.editors[0]);
@@ -326,23 +329,30 @@ export default function RoleWorkspace({
   // ── Planner Submit ──
   async function handlePlannerSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!plannerClient || !plannerDeadline || !plannerBrief) return;
+    const finalClient = isCustomClientMode ? customPlannerClient.trim() : plannerClient;
+    if (!finalClient || !plannerDeadline || !plannerBrief) return;
     setIsSubmittingTask(true);
     try {
       await onAddTask({
-        clientName: plannerClient,
+        clientName: finalClient,
         title: `${plannerFormat} (${plannerDeadline})`,
         format: plannerFormat,
         assignedEditor: plannerEditor,
         assignedWriter: plannerWriter,
         description: plannerBrief,
         rawFootagePath: plannerRawPath,
-        stage: TaskStage.EDITING,
+        stage: plannerStage,
         userName: loggedInUser?.name || "Planner",
         userRole: "Planner",
         deadline: plannerDeadline,
       });
-      setPlannerClient(""); setPlannerDeadline(""); setPlannerBrief(""); setPlannerRawPath("");
+      setPlannerClient("");
+      setCustomPlannerClient("");
+      setIsCustomClientMode(false);
+      setPlannerStage(TaskStage.EDITING);
+      setPlannerDeadline("");
+      setPlannerBrief("");
+      setPlannerRawPath("");
     } finally {
       setIsSubmittingTask(false);
     }
@@ -546,29 +556,53 @@ export default function RoleWorkspace({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
-                  Client *
-                </label>
-                <select 
-                  value={plannerClient} 
-                  onChange={(e) => setPlannerClient(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
-                    darkMode 
-                      ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
-                      : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
-                  }`} 
-                  required
-                >
-                  <option value="">-- Choose Client --</option>
-                  {["Roshan Zindagi","GymBhai","Powerlifting","Diabesity.Life","The Quarterdeck","TSC.Challenges Club",
-                    "Dr Ahmad Shahzad","Dr Ali Asad Khan","Dr Aman Ullah Bhalli","Dr Amir Shoukat","Dr Ashfaq Ali",
-                    "Dr Asif Islam","Dr Asim Munir Alvi","Dr Azmat Ali Khan","Dr Bilad Ul Islam","Dr Col Shakeel Mirza",
-                    "Dr Madeeha Nazar","Dr Mehboob Qadir","Dr Muhammad Usman","Dr Munir Azher Ch","Dr Qamar Sajjad",
-                    "Dr Salahudin Rind","Dr Shaista Kanwal","Dr Tahir Rasool","Dr Usman Musharraf",
-                    "Dr Mehmood Ul Hassan","Dr Shair Zaman Kakar","LDF"].map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+                <div className="flex justify-between items-center mb-1">
+                  <label className={`block text-xs font-semibold ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
+                    Client Name *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomClientMode(!isCustomClientMode)}
+                    className="text-[10px] text-indigo-500 hover:underline font-bold focus:outline-none"
+                  >
+                    {isCustomClientMode ? "Choose Existing" : "+ Add New Client"}
+                  </button>
+                </div>
+                {isCustomClientMode ? (
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter new client brand/account name..."
+                    value={customPlannerClient}
+                    onChange={(e) => setCustomPlannerClient(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                      darkMode 
+                        ? "bg-zinc-950 border border-zinc-850 text-zinc-100 focus:border-indigo-500" 
+                        : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                    }`}
+                  />
+                ) : (
+                  <select 
+                    value={plannerClient} 
+                    onChange={(e) => setPlannerClient(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                      darkMode 
+                        ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
+                        : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                    }`} 
+                    required
+                  >
+                    <option value="">-- Choose Client --</option>
+                    {["Roshan Zindagi","GymBhai","Powerlifting","Diabesity.Life","The Quarterdeck","TSC.Challenges Club",
+                      "Dr Ahmad Shahzad","Dr Ali Asad Khan","Dr Aman Ullah Bhalli","Dr Amir Shoukat","Dr Ashfaq Ali",
+                      "Dr Asif Islam","Dr Asim Munir Alvi","Dr Azmat Ali Khan","Dr Bilad Ul Islam","Dr Col Shakeel Mirza",
+                      "Dr Madeeha Nazar","Dr Mehboob Qadir","Dr Muhammad Usman","Dr Munir Azher Ch","Dr Qamar Sajjad",
+                      "Dr Salahudin Rind","Dr Shaista Kanwal","Dr Tahir Rasool","Dr Usman Musharraf",
+                      "Dr Mehmood Ul Hassan","Dr Shair Zaman Kakar","LDF"].map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
@@ -604,6 +638,27 @@ export default function RoleWorkspace({
                   <option value="Video">Video / Reel / Short</option>
                   <option value="Carousel">Instagram Carousel</option>
                   <option value="Graphic">Graphic / Image</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
+                  Starting Workflow Stage
+                </label>
+                <select 
+                  value={plannerStage} 
+                  onChange={(e) => setPlannerStage(e.target.value as any)}
+                  className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                    darkMode 
+                      ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
+                      : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                  }`}
+                >
+                  <option value={TaskStage.PLANNING}>1. Brief & Review (Planning)</option>
+                  <option value={TaskStage.EDITING}>2. Visual Editing (Editing)</option>
+                  <option value={TaskStage.WRITING}>3. Social Copy (Writing)</option>
+                  <option value={TaskStage.PUBLISHING}>4. Publish Ready (Publishing)</option>
+                  <option value={TaskStage.COMPLETED}>5. Out Live (Completed)</option>
                 </select>
               </div>
 

@@ -869,6 +869,9 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
 
   // Form states for quick add
   const [newClient, setNewClient] = useState("");
+  const [customNewClient, setCustomNewClient] = useState("");
+  const [isCustomClientMode, setIsCustomClientMode] = useState(false);
+  const [newStage, setNewStage] = useState<TaskStage>(TaskStage.PLANNING);
   const [newTitle, setNewTitle] = useState("");
   const [newFormat, setNewFormat] = useState<"Video" | "Graphic" | "Carousel">("Video");
   const [newEditor, setNewEditor] = useState("Yasir");
@@ -1021,24 +1024,31 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClient || !newTitle || !newDeadline || !newBrief || !onAddTask) return;
+    const finalClient = isCustomClientMode ? customNewClient.trim() : newClient;
+    if (!finalClient || !newTitle || !newDeadline || !newBrief || !onAddTask) return;
     setAdminSaving(true);
     try {
       const isVideo = newFormat === "Video";
       await onAddTask({
-        clientName: newClient,
+        clientName: finalClient,
         title: `${newFormat} (${newDeadline})`,
         format: newFormat,
         assignedEditor: isVideo ? newEditor : "Adila", // Route correctly based on formats
         assignedWriter: newWriter,
         description: newBrief,
-        stage: TaskStage.PLANNING,
+        stage: newStage,
         userName: "Administrator",
         userRole: "Dashboard",
         deadline: newDeadline,
       });
-      triggerToast("success", "Admin campaign injected directly to Planning!");
-      setNewClient(""); setNewTitle(""); setNewDeadline(""); setNewBrief("");
+      triggerToast("success", `Admin campaign injected directly to ${newStage}!`);
+      setNewClient("");
+      setCustomNewClient("");
+      setIsCustomClientMode(false);
+      setNewStage(TaskStage.PLANNING);
+      setNewTitle("");
+      setNewDeadline("");
+      setNewBrief("");
       setShowAddCampaign(false);
     } catch {
       triggerToast("error", "Campaign insertion failed.");
@@ -1173,23 +1183,43 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Select Client Account</label>
-                <select
-                  required
-                  value={newClient}
-                  onChange={(e) => setNewClient(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="">-- Choose Account --</option>
-                  {["Roshan Zindagi","GymBhai","Powerlifting","Diabesity.Life","The Quarterdeck","TSC.Challenges Club",
-                    "Dr Ahmad Shahzad","Dr Ali Asad Khan","Dr Aman Ullah Bhalli","Dr Amir Shoukat","Dr Ashfaq Ali",
-                    "Dr Asif Islam","Dr Asim Munir Alvi","Dr Azmat Ali Khan","Dr Bilad Ul Islam","Dr Col Shakeel Mirza",
-                    "Dr Madeeha Nazar","Dr Mehboob Qadir","Dr Muhammad Usman","Dr Munir Azher Ch","Dr Qamar Sajjad",
-                    "Dr Salahudin Rind","Dr Shaista Kanwal","Dr Tahir Rasool","Dr Usman Musharraf",
-                    "Dr Mehmood Ul Hassan","Dr Shair Zaman Kakar","LDF"].map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-[10.5px] font-semibold text-slate-400">Client Account</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomClientMode(!isCustomClientMode)}
+                    className="text-[9.5px] text-indigo-400 hover:underline font-bold focus:outline-none"
+                  >
+                    {isCustomClientMode ? "Choose Existing" : "+ Add New Client"}
+                  </button>
+                </div>
+                {isCustomClientMode ? (
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter brand/client name..."
+                    value={customNewClient}
+                    onChange={(e) => setCustomNewClient(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  />
+                ) : (
+                  <select
+                    required
+                    value={newClient}
+                    onChange={(e) => setNewClient(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="">-- Choose Account --</option>
+                    {["Roshan Zindagi","GymBhai","Powerlifting","Diabesity.Life","The Quarterdeck","TSC.Challenges Club",
+                      "Dr Ahmad Shahzad","Dr Ali Asad Khan","Dr Aman Ullah Bhalli","Dr Amir Shoukat","Dr Ashfaq Ali",
+                      "Dr Asif Islam","Dr Asim Munir Alvi","Dr Azmat Ali Khan","Dr Bilad Ul Islam","Dr Col Shakeel Mirza",
+                      "Dr Madeeha Nazar","Dr Mehboob Qadir","Dr Muhammad Usman","Dr Munir Azher Ch","Dr Qamar Sajjad",
+                      "Dr Salahudin Rind","Dr Shaista Kanwal","Dr Tahir Rasool","Dr Usman Musharraf",
+                      "Dr Mehmood Ul Hassan","Dr Shair Zaman Kakar","LDF"].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
@@ -1263,6 +1293,21 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                   {teamWritersList.map(name => (
                     <option key={name} value={name}>{name}</option>
                   ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Starting Workflow Stage</label>
+                <select
+                  value={newStage}
+                  onChange={(e) => setNewStage(e.target.value as any)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value={TaskStage.PLANNING}>1. Brief & Review (Planning)</option>
+                  <option value={TaskStage.EDITING}>2. Visual Editing (Editing)</option>
+                  <option value={TaskStage.WRITING}>3. Social Copy (Writing)</option>
+                  <option value={TaskStage.PUBLISHING}>4. Publish Ready (Publishing)</option>
+                  <option value={TaskStage.COMPLETED}>5. Out Live (Completed)</option>
                 </select>
               </div>
             </div>
