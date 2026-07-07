@@ -883,6 +883,32 @@ function DataPanel({ tasks, activities, onTasksImported }: {
 
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
 
+const getPriorityBadgeStyle = (priority?: string) => {
+  switch (priority) {
+    case "Urgent":
+      return {
+        text: "🔴 Urgent",
+        classes: "text-rose-400 bg-rose-500/15 border-rose-500/25",
+      };
+    case "High":
+      return {
+        text: "🟠 High",
+        classes: "text-orange-400 bg-orange-500/15 border-orange-500/25",
+      };
+    case "Low":
+      return {
+        text: "🟢 Low",
+        classes: "text-slate-400 bg-slate-800/80 border-slate-700/55",
+      };
+    case "Medium":
+    default:
+      return {
+        text: "🟡 Medium",
+        classes: "text-yellow-450 bg-yellow-500/10 border-yellow-500/20",
+      };
+  }
+};
+
 export default function Dashboard({ tasks, activities = [], onTasksImported, onUpdateTask, onAddTask, currentRole }: DashboardProps) {
   const DEFAULT_CLIENTS = [
     "Roshan Zindagi","GymBhai","Powerlifting","Diabesity.Life","The Quarterdeck","TSC.Challenges Club",
@@ -892,7 +918,19 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
     "Dr Salahudin Rind","Dr Shaista Kanwal","Dr Tahir Rasool","Dr Usman Musharraf",
     "Dr Mehmood Ul Hassan","Dr Shair Zaman Kakar","LDF"
   ];
-  const allClients = Array.from(new Set([...DEFAULT_CLIENTS, ...tasks.map(t => t.clientName)])).filter(Boolean).sort();
+  const [customClients, setCustomClients] = useState<string[]>([]);
+  const allClients = Array.from(new Set([...DEFAULT_CLIENTS, ...customClients, ...tasks.map(t => t.clientName)])).filter(Boolean).sort();
+
+  useEffect(() => {
+    fetch("/api/custom-clients")
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setCustomClients(data);
+        }
+      })
+      .catch(err => console.error("Error loading custom clients", err));
+  }, [tasks]);
 
   // --- State for Pipeline Command Center ---
   const [searchTerm, setSearchTerm] = useState("");
@@ -904,11 +942,13 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [adminRevisionText, setAdminRevisionText] = useState("");
   const [showAddCampaign, setShowAddCampaign] = useState(false);
+  const [sortBy, setSortBy] = useState<"date" | "priority">("date");
 
   // Form states for quick add
   const [newClient, setNewClient] = useState("");
   const [customNewClient, setCustomNewClient] = useState("");
   const [isCustomClientMode, setIsCustomClientMode] = useState(false);
+  const [saveCustomClientOption, setSaveCustomClientOption] = useState(true);
   const [newStage, setNewStage] = useState<TaskStage>(TaskStage.PLANNING);
   const [newTitle, setNewTitle] = useState("");
   const [newFormat, setNewFormat] = useState<"Video" | "Graphic" | "Carousel">("Video");
@@ -916,6 +956,26 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
   const [newWriter, setNewWriter] = useState("Fatima Malik");
   const [newBrief, setNewBrief] = useState("");
   const [newDeadline, setNewDeadline] = useState("");
+  const [newPriority, setNewPriority] = useState<"Low" | "Medium" | "High" | "Urgent">("Medium");
+
+  async function handleDeleteCustomClient() {
+    if (!newClient) return;
+    if (!window.confirm(`Are you sure you want to delete "${newClient}" from the saved clients list?`)) return;
+    try {
+      const res = await fetch("/api/custom-clients/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientName: newClient })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCustomClients(data);
+        setNewClient("");
+      }
+    } catch (err) {
+      console.error("Error deleting custom client:", err);
+    }
+  }
 
   const stageStats = {
     planning: tasks.filter((t) => t.stage === TaskStage.PLANNING).length,
@@ -956,6 +1016,24 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
     const matchesClient = clientFilter === "All" || t.clientName === clientFilter;
     const matchesFormat = formatFilter === "All" || t.format === formatFilter;
     return matchesSearch && matchesClient && matchesFormat;
+  });
+
+  const PRIORITY_ORDER: Record<string, number> = {
+    Urgent: 4,
+    High: 3,
+    Medium: 2,
+    Low: 1,
+  };
+
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    if (sortBy === "priority") {
+      const weightA = PRIORITY_ORDER[a.priority || "Medium"] || 2;
+      const weightB = PRIORITY_ORDER[b.priority || "Medium"] || 2;
+      if (weightA !== weightB) {
+        return weightB - weightA; // Urgent first, then High, etc.
+      }
+    }
+    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
   });
 
   const triggerToast = (type: "success" | "error", text: string) => {
@@ -1066,6 +1144,21 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
     if (!finalClient || !newTitle || !newDeadline || !newBrief || !onAddTask) return;
     setAdminSaving(true);
     try {
+      if (isCustomClientMode && saveCustomClientOption) {
+        try {
+          const clientRes = await fetch("/api/custom-clients", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientName: finalClient })
+          });
+          if (clientRes.ok) {
+            const updated = await clientRes.json();
+            setCustomClients(updated);
+          }
+        } catch (err) {
+          console.error("Error saving custom client:", err);
+        }
+      }
       const isVideo = newFormat === "Video";
       await onAddTask({
         clientName: finalClient,
@@ -1075,6 +1168,7 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
         assignedWriter: newWriter,
         description: newBrief,
         stage: newStage,
+        priority: newPriority,
         userName: "Administrator",
         userRole: "Dashboard",
         deadline: newDeadline,
@@ -1087,6 +1181,7 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
       setNewTitle("");
       setNewDeadline("");
       setNewBrief("");
+      setNewPriority("Medium");
       setShowAddCampaign(false);
     } catch {
       triggerToast("error", "Campaign insertion failed.");
@@ -1232,26 +1327,48 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                   </button>
                 </div>
                 {isCustomClientMode ? (
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter brand/client name..."
-                    value={customNewClient}
-                    onChange={(e) => setCustomNewClient(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-                  />
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter brand/client name..."
+                      value={customNewClient}
+                      onChange={(e) => setCustomNewClient(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none mt-1">
+                      <input
+                        type="checkbox"
+                        checked={saveCustomClientOption}
+                        onChange={(e) => setSaveCustomClientOption(e.target.checked)}
+                        className="rounded border-slate-800 bg-slate-900 text-indigo-500 focus:ring-0 focus:ring-offset-0 h-3.5 w-3.5 cursor-pointer"
+                      />
+                      <span className="text-[10px] text-slate-400 font-medium">💾 Save client for future use</span>
+                    </label>
+                  </div>
                 ) : (
-                  <select
-                    required
-                    value={newClient}
-                    onChange={(e) => setNewClient(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="">-- Choose Account --</option>
-                    {allClients.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                  <div className="space-y-1">
+                    <select
+                      required
+                      value={newClient}
+                      onChange={(e) => setNewClient(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="">-- Choose Account --</option>
+                      {allClients.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    {newClient && customClients.includes(newClient) && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteCustomClient}
+                        className="text-[9.5px] text-rose-400 hover:underline font-semibold block text-left mt-1"
+                      >
+                        🗑️ Delete from saved clients
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -1343,6 +1460,20 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                   <option value={TaskStage.COMPLETED}>5. Out Live (Completed)</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Priority Level</label>
+                <select
+                  value={newPriority}
+                  onChange={(e) => setNewPriority(e.target.value as any)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="Low">🟢 Low</option>
+                  <option value="Medium">🟡 Medium</option>
+                  <option value="High">🟠 High</option>
+                  <option value="Urgent">🔴 Urgent</option>
+                </select>
+              </div>
             </div>
 
             <div>
@@ -1424,6 +1555,19 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                 <option value="Carousel">Carousels</option>
               </select>
             </div>
+
+            {/* Sort Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-500 whitespace-nowrap">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="date">📅 Newest Created</option>
+                <option value="priority">🔥 High Priority First</option>
+              </select>
+            </div>
           </div>
 
           {/* Kanban / List Toggle Modes */}
@@ -1468,7 +1612,7 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
               { id: TaskStage.PUBLISHING, title: "4. PUBLISH READY 🚀", color: "sky", border: "border-sky-500/20", bg: "bg-sky-500/5", colorHex: "#0ea5e9" },
               { id: TaskStage.COMPLETED, title: "5. OUT LIVE ✅", color: "emerald", border: "border-emerald-500/20", bg: "bg-emerald-505/5", colorHex: "#10b981" }
             ].map(lane => {
-              const laneTasks = filteredTasks.filter(t => t.stage === lane.id);
+              const laneTasks = sortedTasks.filter(t => t.stage === lane.id);
               return (
                 <div key={lane.id} className="min-w-[200px] flex-1 flex flex-col gap-3">
                   
@@ -1499,13 +1643,18 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                             onClick={() => setSelectedAdminTask(task)}
                             className="bg-slate-900 border border-slate-8 hover:border-slate-700/80 p-3 rounded-xl cursor-pointer hover:bg-slate-850/80 transition-all space-y-2 relative shadow shadow-black group"
                           >
-                            <div className="flex items-center justify-between gap-1.5">
+                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
                               <span className="text-[10px] bg-slate-950 border border-slate-800 text-slate-400 font-bold px-1.5 py-0.5 rounded uppercase max-w-[110px] truncate">
                                 {task.clientName}
                               </span>
-                              <span className={`text-[9.5px] font-black px-1.5 py-0.2 rounded border uppercase font-mono ${badgeColor}`}>
-                                {formatIcon} {task.format || "Video"}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-[9.5px] font-black px-1.5 py-0.2 rounded border uppercase font-mono ${badgeColor}`}>
+                                  {formatIcon} {task.format || "Video"}
+                                </span>
+                                <span className={`text-[9px] font-semibold px-1 py-0.2 rounded border font-mono ${getPriorityBadgeStyle(task.priority).classes}`}>
+                                  {getPriorityBadgeStyle(task.priority).text}
+                                </span>
+                              </div>
                             </div>
 
                             <h5 className="text-[11.5px] font-semibold text-slate-200 line-clamp-2 leading-tight">
@@ -1605,14 +1754,14 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/65">
-                  {filteredTasks.length === 0 ? (
+                  {sortedTasks.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
                         No active campaigns match the selected filters. Change search parameters to list items.
                       </td>
                     </tr>
                   ) : (
-                    filteredTasks.map(task => {
+                    sortedTasks.map(task => {
                       const colorsMap: Record<string, string> = {
                         planning: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
                         editing: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
@@ -1627,7 +1776,12 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                             {task.clientName}
                           </td>
                           <td className="px-4 py-3 text-slate-300 max-w-xs truncate">
-                            {task.title.replace(`(${task.deadline})`, "").trim()}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span>{task.title.replace(`(${task.deadline})`, "").trim()}</span>
+                              <span className={`text-[9px] font-semibold px-1.5 py-0.2 rounded border font-mono ${getPriorityBadgeStyle(task.priority).classes}`}>
+                                {getPriorityBadgeStyle(task.priority).text}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             <span className="font-semibold text-slate-400">{task.format}</span>
@@ -1780,6 +1934,39 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+                  <span className="text-[9.5px] uppercase font-mono text-slate-400 font-bold block">Campaign Priority Override</span>
+                  <select
+                    value={selectedAdminTask.priority || "Medium"}
+                    onChange={async (e) => {
+                      const updatedPriority = e.target.value;
+                      if (!onUpdateTask) return;
+                      setAdminSaving(true);
+                      try {
+                        await onUpdateTask(selectedAdminTask.id, {
+                          priority: updatedPriority,
+                          $actionUserName: "Administrator",
+                          $actionUserRole: "Dashboard",
+                          $actionDetails: `Priority updated to "${updatedPriority}" by Administrator.`,
+                        });
+                        triggerToast("success", `Priority updated to ${updatedPriority}`);
+                        setSelectedAdminTask(prev => prev ? { ...prev, priority: updatedPriority } : null);
+                      } catch {
+                        triggerToast("error", "Priority update failed.");
+                      } finally {
+                        setAdminSaving(false);
+                      }
+                    }}
+                    disabled={adminSaving}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="Low">🟢 Low Priority</option>
+                    <option value="Medium">🟡 Medium Priority</option>
+                    <option value="High">🟠 High Priority</option>
+                    <option value="Urgent">🔴 Urgent Priority</option>
+                  </select>
                 </div>
               </div>
 

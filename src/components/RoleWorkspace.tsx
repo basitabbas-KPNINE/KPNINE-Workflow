@@ -171,14 +171,47 @@ export default function RoleWorkspace({
     "Dr Asif Islam","Dr Asim Munir Alvi","Dr Azmat Ali Khan","Dr Bilad Ul Islam","Dr Col Shakeel Mirza",
     "Dr Madeeha Nazar","Dr Mehboob Qadir","Dr Muhammad Usman","Dr Munir Azher Ch","Dr Qamar Sajjad",
     "Dr Salahudin Rind","Dr Shaista Kanwal","Dr Tahir Rasool","Dr Usman Musharraf",
-    "Dr Mehmood Ul Hassan","Dr Shair Zaman Kakar","LDF"
+    "Dr Mehmood Ulassan","Dr Shair Zaman Kakar","LDF"
   ];
-  const allClients = Array.from(new Set([...DEFAULT_CLIENTS, ...tasks.map(t => t.clientName)])).filter(Boolean).sort();
+  const [customClients, setCustomClients] = useState<string[]>([]);
+  const allClients = Array.from(new Set([...DEFAULT_CLIENTS, ...customClients, ...tasks.map(t => t.clientName)])).filter(Boolean).sort();
+
+  useEffect(() => {
+    fetch("/api/custom-clients")
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setCustomClients(data);
+        }
+      })
+      .catch(err => console.error("Error loading custom clients", err));
+  }, [tasks]);
 
   // ── Planner state ──
   const [plannerClient, setPlannerClient] = useState("");
   const [customPlannerClient, setCustomPlannerClient] = useState("");
   const [isCustomClientMode, setIsCustomClientMode] = useState(false);
+  const [saveCustomClientOption, setSaveCustomClientOption] = useState(true);
+  const [plannerPriority, setPlannerPriority] = useState<"Low" | "Medium" | "High" | "Urgent">("Medium");
+
+  async function handleDeleteCustomClient() {
+    if (!plannerClient) return;
+    if (!window.confirm(`Are you sure you want to delete "${plannerClient}" from the saved clients list?`)) return;
+    try {
+      const res = await fetch("/api/custom-clients/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientName: plannerClient })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCustomClients(data);
+        setPlannerClient("");
+      }
+    } catch (err) {
+      console.error("Error deleting custom client:", err);
+    }
+  }
   const [plannerStage, setPlannerStage] = useState<TaskStage>(TaskStage.EDITING);
   const [plannerDeadline, setPlannerDeadline] = useState("");
   const [plannerFormat, setPlannerFormat] = useState<"Video" | "Graphic" | "Carousel">("Video");
@@ -369,6 +402,21 @@ export default function RoleWorkspace({
     if (!finalClient || !plannerDeadline || !plannerBrief) return;
     setIsSubmittingTask(true);
     try {
+      if (isCustomClientMode && saveCustomClientOption) {
+        try {
+          const clientRes = await fetch("/api/custom-clients", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientName: finalClient })
+          });
+          if (clientRes.ok) {
+            const updatedCustoms = await clientRes.json();
+            setCustomClients(updatedCustoms);
+          }
+        } catch (clientErr) {
+          console.error("Error saving custom client", clientErr);
+        }
+      }
       await onAddTask({
         clientName: finalClient,
         title: `${plannerFormat} (${plannerDeadline})`,
@@ -378,6 +426,7 @@ export default function RoleWorkspace({
         description: plannerBrief,
         rawFootagePath: plannerRawPath,
         stage: plannerStage,
+        priority: plannerPriority,
         userName: loggedInUser?.name || "Planner",
         userRole: "Planner",
         deadline: plannerDeadline,
@@ -389,6 +438,7 @@ export default function RoleWorkspace({
       setPlannerDeadline("");
       setPlannerBrief("");
       setPlannerRawPath("");
+      setPlannerPriority("Medium");
     } finally {
       setIsSubmittingTask(false);
     }
@@ -631,34 +681,56 @@ export default function RoleWorkspace({
                   </button>
                 </div>
                 {isCustomClientMode ? (
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter new client brand/account name..."
-                    value={customPlannerClient}
-                    onChange={(e) => setCustomPlannerClient(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
-                      darkMode 
-                        ? "bg-zinc-950 border border-zinc-850 text-zinc-100 focus:border-indigo-500" 
-                        : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
-                    }`}
-                  />
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter new client brand/account name..."
+                      value={customPlannerClient}
+                      onChange={(e) => setCustomPlannerClient(e.target.value)}
+                      className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                        darkMode 
+                          ? "bg-zinc-950 border border-zinc-850 text-zinc-100 focus:border-indigo-500" 
+                          : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                      }`}
+                    />
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none mt-1">
+                      <input
+                        type="checkbox"
+                        checked={saveCustomClientOption}
+                        onChange={(e) => setSaveCustomClientOption(e.target.checked)}
+                        className="rounded border-zinc-800 bg-zinc-950 text-indigo-500 focus:ring-0 focus:ring-offset-0 h-3.5 w-3.5 cursor-pointer"
+                      />
+                      <span className={`text-[10px] font-medium ${darkMode ? "text-zinc-400" : "text-slate-500"}`}>💾 Save client for future use</span>
+                    </label>
+                  </div>
                 ) : (
-                  <select 
-                    value={plannerClient} 
-                    onChange={(e) => setPlannerClient(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
-                      darkMode 
-                        ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
-                        : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
-                    }`} 
-                    required
-                  >
-                    <option value="">-- Choose Client --</option>
-                    {allClients.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                  <div className="space-y-1">
+                    <select 
+                      value={plannerClient} 
+                      onChange={(e) => setPlannerClient(e.target.value)}
+                      className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                        darkMode 
+                          ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
+                          : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                      }`} 
+                      required
+                    >
+                      <option value="">-- Choose Client --</option>
+                      {allClients.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    {plannerClient && customClients.includes(plannerClient) && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteCustomClient}
+                        className="text-[10px] text-rose-500 hover:underline font-semibold block text-left mt-1"
+                      >
+                        🗑️ Delete from saved clients
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -716,6 +788,26 @@ export default function RoleWorkspace({
                   <option value={TaskStage.WRITING}>3. Social Copy (Writing)</option>
                   <option value={TaskStage.PUBLISHING}>4. Publish Ready (Publishing)</option>
                   <option value={TaskStage.COMPLETED}>5. Out Live (Completed)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={`block text-xs font-semibold mb-1 ${darkMode ? "text-zinc-400" : "text-slate-600"}`}>
+                  Priority Level
+                </label>
+                <select 
+                  value={plannerPriority} 
+                  onChange={(e) => setPlannerPriority(e.target.value as any)}
+                  className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                    darkMode 
+                      ? "bg-zinc-950 border border-zinc-800 text-zinc-100 focus:border-indigo-500" 
+                      : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
+                  }`}
+                >
+                  <option value="Low">🟢 Low</option>
+                  <option value="Medium">🟡 Medium</option>
+                  <option value="High">🟠 High</option>
+                  <option value="Urgent">🔴 Urgent</option>
                 </select>
               </div>
 

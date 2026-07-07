@@ -261,6 +261,7 @@ app.post("/api/tasks", (req, res) => {
     assignedEditor: req.body.assignedEditor || "Yasir",
     assignedWriter: req.body.assignedWriter || "Fatima Malik",
     videographerName: req.body.videographerName || "Basit",
+    priority: req.body.priority || "Medium",
     isViewedByNextRole: false,
     ...req.body,
   };
@@ -766,6 +767,49 @@ app.post("/api/settings/team", (req, res) => {
 app.post("/api/reset", (_req, res) => {
   getDB().exec("DELETE FROM tasks; DELETE FROM activities;");
   res.json({ success: true, message: "Database cleared." });
+});
+
+// ─── Custom Clients ──────────────────────────────────────────────────────────
+
+function getCustomClients(): string[] {
+  const row = getDB().prepare("SELECT value FROM settings WHERE key = 'custom_clients'").get() as any;
+  return row ? JSON.parse(row.value) : [];
+}
+
+function saveCustomClients(clients: string[]): void {
+  getDB()
+    .prepare("INSERT INTO settings (key, value) VALUES ('custom_clients', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    .run(JSON.stringify(clients));
+}
+
+app.get("/api/custom-clients", (_req, res) => {
+  res.json(getCustomClients());
+});
+
+app.post("/api/custom-clients", (req, res) => {
+  const { clientName } = req.body;
+  if (!clientName || typeof clientName !== "string") {
+    return res.status(400).json({ error: "Invalid client name" });
+  }
+  const current = getCustomClients();
+  const trimmed = clientName.trim();
+  if (trimmed && !current.includes(trimmed)) {
+    current.push(trimmed);
+    saveCustomClients(current);
+  }
+  res.json(current);
+});
+
+app.post("/api/custom-clients/delete", (req, res) => {
+  const { clientName } = req.body;
+  if (!clientName || typeof clientName !== "string") {
+    return res.status(400).json({ error: "Invalid client name" });
+  }
+  const current = getCustomClients();
+  const trimmed = clientName.trim();
+  const filtered = current.filter(c => c !== trimmed);
+  saveCustomClients(filtered);
+  res.json(filtered);
 });
 
 // Gemini AI

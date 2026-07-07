@@ -35,6 +35,8 @@ export interface Revision {
   resolvedBy?: string;
 }
 
+export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
+
 export interface Task {
   id: string;
   clientName: string;
@@ -42,6 +44,7 @@ export interface Task {
   description: string;
   format: 'Video' | 'Graphic' | 'Carousel';
   stage: TaskStage;
+  priority?: TaskPriority;
   createdAt: string;
   updatedAt: string;
   deadline?: string; // Project completion deadline date (YYYY-MM-DD)
