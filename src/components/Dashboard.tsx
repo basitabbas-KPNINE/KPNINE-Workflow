@@ -1662,7 +1662,7 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                             </h5>
 
                             {/* Info grid */}
-                            <div className="grid grid-cols-2 gap-1 border-t border-slate-950 pt-2 text-[9.5px] text-slate-500">
+                            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 border-t border-slate-950 pt-2 text-[9.5px] text-slate-500">
                               <div>
                                 <span className="block opacity-60">Visual Crew:</span>
                                 <strong className="text-slate-300 font-normal">{task.assignedEditor || "Adila"}</strong>
@@ -1670,6 +1670,18 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                               <div>
                                 <span className="block opacity-60">Copy Crew:</span>
                                 <strong className="text-slate-300 font-normal">{task.assignedWriter || "Fatima"}</strong>
+                              </div>
+                              <div>
+                                <span className="block opacity-60">Created Date:</span>
+                                <strong className="text-slate-300 font-normal font-mono">
+                                  {task.createdAt ? new Date(task.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
+                                </strong>
+                              </div>
+                              <div>
+                                <span className="block opacity-60">Deadline Date:</span>
+                                <strong className={`font-mono ${task.deadline ? 'text-amber-400 font-semibold' : 'text-slate-300 font-normal'}`}>
+                                  {task.deadline ? new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "None"}
+                                </strong>
                               </div>
                             </div>
 
@@ -1747,6 +1759,8 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                     <th className="px-4 py-3 font-semibold">Campaign / Title</th>
                     <th className="px-4 py-3 font-semibold">Format</th>
                     <th className="px-4 py-3 font-semibold">Stage Status</th>
+                    <th className="px-4 py-3 font-semibold">Created At</th>
+                    <th className="px-4 py-3 font-semibold">Deadline</th>
                     <th className="px-4 py-3 font-semibold">Visual Crew</th>
                     <th className="px-4 py-3 font-semibold">Copy Writer</th>
                     <th className="px-4 py-3 font-semibold">Directory Path / Link</th>
@@ -1756,7 +1770,7 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                 <tbody className="divide-y divide-slate-800/65">
                   {sortedTasks.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
+                      <td colSpan={10} className="px-4 py-12 text-center text-slate-500">
                         No active campaigns match the selected filters. Change search parameters to list items.
                       </td>
                     </tr>
@@ -1790,6 +1804,18 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                             <span className={`px-2 py-0.5 rounded-lg ${colorsMap[task.stage] || "bg-slate-800 text-slate-400"}`}>
                               {task.stage}
                             </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-350 whitespace-nowrap font-mono text-[10.5px]">
+                            {task.createdAt ? new Date(task.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap font-mono text-[10.5px]">
+                            {task.deadline ? (
+                              <span className="text-amber-400 font-semibold">
+                                {new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">None</span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <select
@@ -1849,6 +1875,15 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                 <h3 className="text-base font-bold text-slate-100">
                   {selectedAdminTask.clientName} &mdash; {selectedAdminTask.title.replace(`(${selectedAdminTask.deadline})`, "").trim()}
                 </h3>
+                <div className="flex items-center gap-3 text-[10px] text-slate-400 pt-1 font-mono flex-wrap">
+                  <span className="flex items-center gap-1">
+                    📅 Created: <strong className="text-slate-300">{selectedAdminTask.createdAt ? new Date(selectedAdminTask.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "N/A"}</strong>
+                  </span>
+                  <span className="text-slate-700">|</span>
+                  <span className="flex items-center gap-1">
+                    🚨 Deadline: <strong className={selectedAdminTask.deadline ? "text-amber-400 font-bold" : "text-slate-300"}>{selectedAdminTask.deadline ? new Date(selectedAdminTask.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "None"}</strong>
+                  </span>
+                </div>
               </div>
               <button
                 onClick={() => setSelectedAdminTask(null)}

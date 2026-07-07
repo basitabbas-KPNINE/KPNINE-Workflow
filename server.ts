@@ -14,7 +14,7 @@ dotenv.config();
 const app = express();
 app.use(express.json({ limit: "10mb" }));
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 const DB_FILE = process.env.DATABASE_PATH || path.join(process.cwd(), "pipeline.db");
 
 // ─── SQLite Setup ────────────────────────────────────────────────────────────
