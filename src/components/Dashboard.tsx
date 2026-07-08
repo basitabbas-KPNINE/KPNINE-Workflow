@@ -452,14 +452,14 @@ function GoogleSheetsPanel({ onTasksImported }: { onTasksImported: () => Promise
   var data = JSON.parse(e.postData.contents);
   if (data.action === "sync_all") {
     sheet.clear();
-    sheet.appendRow(["ID", "Client Name", "Campaign Title", "Stage", "Format", "Description", "Raw Footage Path/Link", "Edited Path/Link", "Caption", "Hashtags", "Published Platform", "Published Link", "Publisher Notes", "Created At", "Updated At"]);
+    sheet.appendRow(["ID", "Client Name", "Campaign Title", "Stage", "Format", "Description", "Raw Footage Path/Link", "Edited Path/Link", "Caption", "Hashtags", "Facebook Link", "Instagram Link", "TikTok Link", "YouTube Link", "Publisher Notes", "Created At", "Updated At"]);
     var tasks = data.tasks;
     for (var i = 0; i < tasks.length; i++) {
       var t = tasks[i];
       sheet.appendRow([
         t.id || "", t.clientName || "", t.title || "", t.stage || "", t.format || "",
         t.description || "", t.rawFootageLink || t.rawFootagePath || "", t.editedFileLink || t.editedFilePath || "",
-        t.captionText || "", t.hashtags || "", t.publishedPlatform || "", t.publishedLink || "", t.publisherNotes || "",
+        t.captionText || "", t.hashtags || "", t.facebookLink || "", t.instagramLink || "", t.tiktokLink || "", t.youtubeLink || "", t.publisherNotes || "",
         t.createdAt || "", t.updatedAt || ""
       ]);
     }
@@ -474,14 +474,14 @@ function GoogleSheetsPanel({ onTasksImported }: { onTasksImported: () => Promise
     var rowData = [
       t.id || "", t.clientName || "", t.title || "", t.stage || "", t.format || "",
       t.description || "", t.rawFootageLink || t.rawFootagePath || "", t.editedFileLink || t.editedFilePath || "",
-      t.captionText || "", t.hashtags || "", t.publishedPlatform || "", t.publishedLink || "", t.publisherNotes || "",
+      t.captionText || "", t.hashtags || "", t.facebookLink || "", t.instagramLink || "", t.tiktokLink || "", t.youtubeLink || "", t.publisherNotes || "",
       t.createdAt || "", t.updatedAt || ""
     ];
     if (rowIndex !== -1) {
       sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
     } else {
       if (sheet.getLastRow() === 0) {
-        sheet.appendRow(["ID", "Client Name", "Campaign Title", "Stage", "Format", "Description", "Raw Footage Path/Link", "Edited Path/Link", "Caption", "Hashtags", "Published Platform", "Published Link", "Publisher Notes", "Created At", "Updated At"]);
+        sheet.appendRow(["ID", "Client Name", "Campaign Title", "Stage", "Format", "Description", "Raw Footage Path/Link", "Edited Path/Link", "Caption", "Hashtags", "Facebook Link", "Instagram Link", "TikTok Link", "YouTube Link", "Publisher Notes", "Created At", "Updated At"]);
       }
       sheet.appendRow(rowData);
     }
@@ -504,8 +504,8 @@ function GoogleSheetsPanel({ onTasksImported }: { onTasksImported: () => Promise
       tasks.push({
         id: row[0], clientName: row[1], title: row[2], stage: row[3], format: row[4],
         description: row[5], rawFootageLink: row[6], editedFileLink: row[7],
-        captionText: row[8], hashtags: row[9], publishedPlatform: row[10], publishedLink: row[11], publisherNotes: row[12],
-        createdAt: row[13], updatedAt: row[14]
+        captionText: row[8], hashtags: row[9], facebookLink: row[10], instagramLink: row[11], tiktokLink: row[12], youtubeLink: row[13], publisherNotes: row[14],
+        createdAt: row[15], updatedAt: row[16]
       });
     }
     return ContentService.createTextOutput(JSON.stringify({tasks: tasks})).setMimeType(ContentService.MimeType.JSON);
@@ -762,9 +762,11 @@ function DataPanel({ tasks, activities, onTasksImported }: {
           assignedWriter: cols[7] || "",
           captionText: cols[8] || "",
           hashtags: cols[9] || "",
-          publishedPlatform: cols[10] || "",
-          publishedLink: cols[11] || "",
-          publisherNotes: cols[12] || "",
+          facebookLink: cols[10] || "",
+          instagramLink: cols[11] || "",
+          tiktokLink: cols[12] || "",
+          youtubeLink: cols[13] || "",
+          publisherNotes: cols[14] || "",
           updatedAt: new Date().toISOString(),
           description: "",
         };
@@ -854,7 +856,7 @@ function DataPanel({ tasks, activities, onTasksImported }: {
       <div className="bg-slate-950 rounded-xl p-3 border border-slate-800 space-y-1.5">
         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">CSV Column Format</p>
         <div className="grid grid-cols-3 gap-1 text-[9px] font-mono text-slate-500">
-          {["A: Campaign ID", "B: Client Name", "C: Title", "D: Format", "E: Stage", "F: Created", "G: Editor", "H: Writer", "I: Caption", "J: Hashtags", "K: Platform", "L: Link"].map(col => (
+          {["A: Campaign ID", "B: Client Name", "C: Title", "D: Format", "E: Stage", "F: Created", "G: Editor", "H: Writer", "I: Caption", "J: Hashtags", "K: Facebook Link", "L: Instagram Link", "M: TikTok Link", "N: YouTube Link", "O: Notes"].map(col => (
             <span key={col} className="bg-slate-900 rounded px-1.5 py-0.5">{col}</span>
           ))}
         </div>
@@ -951,7 +953,7 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
   const [saveCustomClientOption, setSaveCustomClientOption] = useState(true);
   const [newStage, setNewStage] = useState<TaskStage>(TaskStage.PLANNING);
   const [newTitle, setNewTitle] = useState("");
-  const [newFormat, setNewFormat] = useState<"Video" | "Graphic" | "Carousel">("Video");
+  const [newFormat, setNewFormat] = useState<"Long Video" | "Short Video" | "Video" | "Graphic" | "Carousel">("Long Video");
   const [newEditor, setNewEditor] = useState("Yasir");
   const [newWriter, setNewWriter] = useState("Fatima Malik");
   const [newBrief, setNewBrief] = useState("");
@@ -986,6 +988,8 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
   };
 
   const formats = {
+    LongVideo: tasks.filter((t) => t.format === "Long Video").length,
+    ShortVideo: tasks.filter((t) => t.format === "Short Video").length,
     Video: tasks.filter((t) => t.format === "Video").length,
     Graphic: tasks.filter((t) => t.format === "Graphic").length,
     Carousel: tasks.filter((t) => t.format === "Carousel").length,
@@ -1000,7 +1004,9 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
   ];
 
   const pieChartData = [
-    { name: "Videos", value: formats.Video, color: "#f43f5e" },
+    { name: "Long Videos", value: formats.LongVideo, color: "#f43f5e" },
+    { name: "Short Videos", value: formats.ShortVideo, color: "#fda4af" },
+    { name: "Legacy Videos", value: formats.Video, color: "#e11d48" },
     { name: "Graphics", value: formats.Graphic, color: "#3b82f6" },
     { name: "Carousels", value: formats.Carousel, color: "#10b981" },
   ].filter((d) => d.value > 0);
@@ -1159,7 +1165,7 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
           console.error("Error saving custom client:", err);
         }
       }
-      const isVideo = newFormat === "Video";
+      const isVideo = newFormat === "Video" || newFormat === "Long Video" || newFormat === "Short Video";
       await onAddTask({
         clientName: finalClient,
         title: `${newFormat} (${newDeadline})`,
@@ -1215,7 +1221,7 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
         <KpiCard icon={<CheckCircle className="h-4 w-4" />} color="emerald" label="Completed"
           value={stageStats.completed} sub="Published campaigns" />
         <KpiCard icon={<CloudLightning className="h-4 w-4" />} color="rose" label="Content Mix"
-          value={`${formats.Video}v · ${formats.Graphic}g · ${formats.Carousel}c`} sub="Format breakdown" small />
+          value={`${formats.LongVideo + formats.ShortVideo + formats.Video}v (${formats.LongVideo}L/${formats.ShortVideo}S) · ${formats.Graphic}g · ${formats.Carousel}c`} sub="Format breakdown" small />
         <KpiCard icon={<Database className="h-4 w-4" />} color="teal" label="Active Clients"
           value={uniqueClients} sub="Unique accounts" />
       </div>
@@ -1391,7 +1397,8 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                   onChange={(e) => setNewFormat(e.target.value as any)}
                   className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
                 >
-                  <option value="Video">Video Reel / Short</option>
+                  <option value="Long Video">Long Video</option>
+                  <option value="Short Video">Short Video (Reel / TikTok / Shorts)</option>
                   <option value="Graphic">Graphic Image</option>
                   <option value="Carousel">Carousel Layout</option>
                 </select>
@@ -1408,7 +1415,7 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                 />
               </div>
 
-              {newFormat === "Video" ? (
+              {(newFormat === "Video" || newFormat === "Long Video" || newFormat === "Short Video") ? (
                 <div>
                   <label className="block text-[10.5px] font-semibold text-slate-400 mb-1">Assign Editor Desk</label>
                   <select
@@ -1550,7 +1557,9 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
               >
                 <option value="All">All Formats</option>
-                <option value="Video">Video Reels</option>
+                <option value="Long Video">Long Videos</option>
+                <option value="Short Video">Short Videos</option>
+                <option value="Video">Legacy Videos</option>
                 <option value="Graphic">Graphic Images</option>
                 <option value="Carousel">Carousels</option>
               </select>
@@ -1632,10 +1641,19 @@ export default function Dashboard({ tasks, activities = [], onTasksImported, onU
                       </div>
                     ) : (
                       laneTasks.map(task => {
-                        const isVideo = task.format === "Video";
+                        const isVideoFormat = task.format === "Video" || task.format === "Long Video" || task.format === "Short Video";
                         const isCarousel = task.format === "Carousel";
-                        const badgeColor = isVideo ? "text-rose-450 bg-rose-500/10 border-rose-500/15" : isCarousel ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/15" : "text-blue-400 bg-blue-500/10 border-blue-500/15";
-                        const formatIcon = isVideo ? "🎬" : isCarousel ? "🎠" : "🎨";
+                        const badgeColor = 
+                          task.format === "Long Video" ? "text-rose-400 bg-rose-500/10 border-rose-500/15" :
+                          task.format === "Short Video" ? "text-amber-400 bg-amber-500/10 border-amber-500/15" :
+                          task.format === "Video" ? "text-pink-400 bg-pink-500/10 border-pink-500/15" :
+                          isCarousel ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/15" : 
+                          "text-blue-400 bg-blue-500/10 border-blue-500/15";
+                        const formatIcon = 
+                          task.format === "Long Video" ? "🎥" :
+                          task.format === "Short Video" ? "⚡" :
+                          task.format === "Video" ? "🎬" :
+                          isCarousel ? "🎠" : "🎨";
                         
                         return (
                           <div

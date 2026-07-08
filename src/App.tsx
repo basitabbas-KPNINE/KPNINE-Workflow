@@ -224,7 +224,7 @@ export default function App() {
     const role = loggedInUser.role;
     
     if (role === "Editor") {
-      return task.stage === TaskStage.EDITING && (task.format === "Video" || !task.format);
+      return task.stage === TaskStage.EDITING && (task.format === "Video" || task.format === "Long Video" || task.format === "Short Video" || !task.format);
     }
     if (role === "Designer") {
       return task.stage === TaskStage.EDITING && (task.format === "Graphic" || task.format === "Carousel");
@@ -647,6 +647,7 @@ export default function App() {
           onClose={() => setSelectedTask(null)}
           onDeleteTask={handleDeleteTask}
           activeRole={currentRole}
+          activities={activities}
         />
       )}
 

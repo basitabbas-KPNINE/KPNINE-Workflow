@@ -214,7 +214,7 @@ export default function RoleWorkspace({
   }
   const [plannerStage, setPlannerStage] = useState<TaskStage>(TaskStage.EDITING);
   const [plannerDeadline, setPlannerDeadline] = useState("");
-  const [plannerFormat, setPlannerFormat] = useState<"Video" | "Graphic" | "Carousel">("Video");
+  const [plannerFormat, setPlannerFormat] = useState<"Long Video" | "Short Video" | "Video" | "Graphic" | "Carousel">("Long Video");
   const [plannerEditor, setPlannerEditor] = useState(TEAM_MEMBERS.editors[0]);
   const [plannerWriter, setPlannerWriter] = useState(TEAM_MEMBERS.writers[0]);
   const [plannerBrief, setPlannerBrief] = useState("");
@@ -316,7 +316,7 @@ export default function RoleWorkspace({
         handlePlanningTaskSelect(selectedTask.id);
       } else if (activeRole === "Editor" || activeRole === "Designer") {
         const matchesFormat = activeRole === "Editor" 
-          ? (selectedTask.format === "Video" || !selectedTask.format)
+          ? (selectedTask.format === "Video" || selectedTask.format === "Long Video" || selectedTask.format === "Short Video" || !selectedTask.format)
           : (selectedTask.format === "Graphic" || selectedTask.format === "Carousel");
 
         if (selectedTask.stage === TaskStage.EDITING && matchesFormat) {
@@ -385,9 +385,21 @@ export default function RoleWorkspace({
       Facebook: { enabled: false, link: "", notes: "", status: "published" },
       LinkedIn: { enabled: false, link: "", notes: "", status: "published" },
     };
+    if (found?.facebookLink) {
+      fresh["Facebook"] = { enabled: true, link: found.facebookLink, notes: "", status: "published" };
+    }
+    if (found?.instagramLink) {
+      fresh["Instagram"] = { enabled: true, link: found.instagramLink, notes: "", status: "published" };
+    }
+    if (found?.tiktokLink) {
+      fresh["TikTok"] = { enabled: true, link: found.tiktokLink, notes: "", status: "published" };
+    }
+    if (found?.youtubeLink) {
+      fresh["YouTube"] = { enabled: true, link: found.youtubeLink, notes: "", status: "published" };
+    }
     if (found?.submissions?.length) {
       found.submissions.forEach((s) => {
-        if (s.platform in fresh) {
+        if (s.platform in fresh && !fresh[s.platform].link) {
           fresh[s.platform] = { enabled: true, link: s.link || "", notes: s.notes || "", status: "published" };
         }
       });
@@ -534,10 +546,20 @@ export default function RoleWorkspace({
       return;
     }
 
+    // Map specific platforms to our 4 explicit links
+    const facebookLink = publishPlacements["Facebook"]?.enabled ? publishPlacements["Facebook"]?.link.trim() : "";
+    const instagramLink = publishPlacements["Instagram"]?.enabled ? publishPlacements["Instagram"]?.link.trim() : "";
+    const tiktokLink = publishPlacements["TikTok"]?.enabled ? publishPlacements["TikTok"]?.link.trim() : "";
+    const youtubeLink = publishPlacements["YouTube"]?.enabled ? publishPlacements["YouTube"]?.link.trim() : "";
+
     setIsSubmittingPub(true);
     try {
       await onUpdateTask(selectedPubTaskId, {
         submissions,
+        facebookLink,
+        instagramLink,
+        tiktokLink,
+        youtubeLink,
         publishedPlatform: submissions[0].platform,
         publishedLink: submissions[0].link,
         publisherNotes: submissions.map((s) => `${s.platform}: ${s.status}`).join(", "),
@@ -608,7 +630,7 @@ export default function RoleWorkspace({
   // Filter lists
   const editingTasks = tasks.filter((t) => {
     if (t.stage !== TaskStage.EDITING) return false;
-    if (activeRole === "Editor") return t.format === "Video" || !t.format;
+    if (activeRole === "Editor") return t.format === "Video" || t.format === "Long Video" || t.format === "Short Video" || !t.format;
     if (activeRole === "Designer") return t.format === "Graphic" || t.format === "Carousel";
     return true;
   });
@@ -764,7 +786,8 @@ export default function RoleWorkspace({
                       : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
                   }`}
                 >
-                  <option value="Video">Video / Reel / Short</option>
+                  <option value="Long Video">Long Video</option>
+                  <option value="Short Video">Short Video (Reel / TikTok / Shorts)</option>
                   <option value="Carousel">Instagram Carousel</option>
                   <option value="Graphic">Graphic / Image</option>
                 </select>
@@ -825,7 +848,7 @@ export default function RoleWorkspace({
                         : "bg-white border border-slate-200 text-slate-800 focus:border-blue-500"
                     }`}
                   >
-                    {plannerFormat === "Video"
+                    {(plannerFormat === "Video" || plannerFormat === "Long Video" || plannerFormat === "Short Video")
                       ? TEAM_MEMBERS.editors.map((n) => <option key={n} value={n}>{n}</option>)
                       : TEAM_MEMBERS.designers.map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>

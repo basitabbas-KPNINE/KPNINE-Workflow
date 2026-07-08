@@ -588,13 +588,16 @@ app.get("/api/export/xlsx", async (_req, res) => {
   // Sheet 1: All Campaigns overview
   const allSheet: SheetDef = {
     name: "All Campaigns",
-    headers: ["ID", "Client", "Title", "Format", "Stage", "Created", "Editor", "Writer", "Revisions", "Published Platforms"],
+    headers: ["ID", "Client", "Title", "Format", "Stage", "Created", "Editor", "Writer", "Revisions", "Facebook Link", "Instagram Link", "TikTok Link", "YouTube Link"],
     rows: tasks.map((t) => [
       t.id, t.clientName, t.title, t.format, t.stage,
       t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "",
       t.assignedEditor || "", t.assignedWriter || "",
       t.revisionCount || 0,
-      (t.submissions || []).map((s: any) => s.platform).join(", ") || t.publishedPlatform || "",
+      t.facebookLink || "",
+      t.instagramLink || "",
+      t.tiktokLink || "",
+      t.youtubeLink || "",
     ]),
   };
 
@@ -642,25 +645,19 @@ app.get("/api/export/xlsx", async (_req, res) => {
   // Sheet 5: Published / Platform
   const publishedSheet: SheetDef = {
     name: "Published",
-    headers: ["Client", "Title", "Platform", "Status", "Live URL", "Publisher Notes", "Published At"],
+    headers: ["Client", "Title", "Facebook Link", "Instagram Link", "TikTok Link", "YouTube Link", "Publisher Notes", "Published At"],
     rows: tasks
-      .filter((t) => t.stage === "completed" || t.submissions?.length)
-      .flatMap((t) => {
-        if (t.submissions?.length) {
-          return t.submissions.map((s: any) => [
-            t.clientName, t.title, s.platform,
-            s.status || "published", s.link || "",
-            (s.notes || "").replace(/\n/g, " "),
-            s.publishedAt ? new Date(s.publishedAt).toLocaleDateString() : "",
-          ]);
-        }
-        return [[
-          t.clientName, t.title, t.publishedPlatform || "",
-          "published", t.publishedLink || "",
-          (t.publisherNotes || "").replace(/\n/g, " "),
-          t.publisherSubmittedAt ? new Date(t.publisherSubmittedAt).toLocaleDateString() : "",
-        ]];
-      }),
+      .filter((t) => t.stage === "completed" || t.facebookLink || t.instagramLink || t.tiktokLink || t.youtubeLink)
+      .map((t) => [
+        t.clientName,
+        t.title,
+        t.facebookLink || "",
+        t.instagramLink || "",
+        t.tiktokLink || "",
+        t.youtubeLink || "",
+        (t.publisherNotes || "").replace(/\n/g, " "),
+        t.publisherSubmittedAt ? new Date(t.publisherSubmittedAt).toLocaleDateString() : "",
+      ]),
   };
 
   // Sheet 6: Revisions
@@ -703,14 +700,14 @@ app.get("/api/export/xlsx", async (_req, res) => {
 // Legacy CSV export (single sheet, kept for compatibility)
 app.get("/api/export/csv", (_req, res) => {
   const tasks = getAllTasks();
-  const headers = ["Campaign ID", "Client Name", "Title", "Format", "Stage", "Created", "Editor", "Writer", "Caption", "Hashtags", "Platform", "Published Link", "Notes"];
+  const headers = ["Campaign ID", "Client Name", "Title", "Format", "Stage", "Created", "Editor", "Writer", "Caption", "Hashtags", "Facebook Link", "Instagram Link", "TikTok Link", "YouTube Link", "Notes"];
   const rows = tasks.map((t) => [
     t.id, t.clientName, t.title, t.format, t.stage,
     t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "",
     t.assignedEditor || "", t.assignedWriter || "",
     (t.captionText || "").replace(/\n/g, " "),
     (t.hashtags || "").replace(/\n/g, " "),
-    t.publishedPlatform || "", t.publishedLink || "",
+    t.facebookLink || "", t.instagramLink || "", t.tiktokLink || "", t.youtubeLink || "",
     (t.publisherNotes || "").replace(/\n/g, " "),
   ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
   const csv = [headers.join(","), ...rows].join("\n");

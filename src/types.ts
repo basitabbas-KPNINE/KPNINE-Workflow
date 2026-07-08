@@ -42,7 +42,7 @@ export interface Task {
   clientName: string;
   title: string;
   description: string;
-  format: 'Video' | 'Graphic' | 'Carousel';
+  format: 'Long Video' | 'Short Video' | 'Video' | 'Graphic' | 'Carousel';
   stage: TaskStage;
   priority?: TaskPriority;
   createdAt: string;
@@ -81,6 +81,10 @@ export interface Task {
   // Publisher
   publishedPlatform?: string;
   publishedLink?: string;
+  facebookLink?: string;
+  instagramLink?: string;
+  tiktokLink?: string;
+  youtubeLink?: string;
   publisherNotes?: string;
   publisherSubmittedAt?: string;
 

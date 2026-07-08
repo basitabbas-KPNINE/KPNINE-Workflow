@@ -28,6 +28,10 @@ export default function TaskBoard({ tasks, onCardClick, activeRole, darkMode = t
   // Format indicators
   const getFormatIcon = (format: Task['format']) => {
     switch (format) {
+      case 'Long Video':
+        return <Video className="h-4 w-4 text-rose-500" />;
+      case 'Short Video':
+        return <Video className="h-4 w-4 text-amber-500" />;
       case 'Video':
         return <Video className="h-4 w-4 text-emerald-500" />;
       case 'Carousel':
